@@ -16,7 +16,7 @@ Faraflow is a visual studio and a workflow engine for business-grade AI agents. 
 
 [![License: FCL-1.0-ALv2](https://img.shields.io/badge/license-FCL--1.0--ALv2-blue)](./LICENSE.md)
 
-[![Talk to us](https://img.shields.io/badge/Talk%20to%20us-15%20min%20video%20call-FFC247?style=for-the-badge&logo=googlemeet&logoColor=white&labelColor=232E5C&color=FFC247)](https://cal.com/faraflow/discovery) [![Message us](https://img.shields.io/badge/Message%20us-WhatsApp-232E5C?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/919846088898?text=Hi%2C%20I%20would%20like%20to%20know%20how%20Faraflow%20can%20help%20me.%20I%20want%20to%20use%20AI%20to%20...)
+[![Talk to us](https://img.shields.io/badge/Talk%20to%20us-15%20min%20video%20call-FFC247?style=for-the-badge&logo=googlemeet&logoColor=white&labelColor=232E5C&color=FFC247)](https://cal.com/faraflow/dubaiaifestival) [![Message us](https://img.shields.io/badge/Message%20us-WhatsApp-232E5C?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/919846088898?text=Hi%2C%20I%20would%20like%20to%20know%20how%20Faraflow%20can%20help%20me.%20I%20want%20to%20use%20AI%20to%20...)
 
 ## Why Faraflow
 
