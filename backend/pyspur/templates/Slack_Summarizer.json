@@ -82,7 +82,7 @@
           "title": "FirecrawlScrapeNode_1",
           "type": "object",
           "output_schema": {
-            "output": "string"
+            "markdown": "string"
           },
           "output_json_schema": "{\"properties\": {\"markdown\": {\"description\": \"The scraped data in markdown format.\", \"title\": \"Markdown\", \"type\": \"string\"}}, \"required\": [\"markdown\"], \"title\": \"FirecrawlScrapeNodeOutput\", \"type\": \"object\"}",
           "has_fixed_output": true,
@@ -109,7 +109,7 @@
           "output_json_schema": "{\"type\": \"object\", \"properties\": {\"output\": {\"type\": \"string\"} } }",
           "has_fixed_output": false,
           "llm_info": {
-            "model": "openai/chatgpt-4o-latest",
+            "model": "openai/gpt-4o",
             "max_tokens": 4096,
             "temperature": 0.7,
             "top_p": 0.9
@@ -135,12 +135,12 @@
           "title": "MarkdownExtractor",
           "type": "object",
           "output_schema": {
-            "output": "string"
+            "markdown": "string"
           },
           "output_json_schema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"markdown\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"markdown\"\n  ],\n  \"additionalProperties\": false\n}",
           "has_fixed_output": false,
           "llm_info": {
-            "model": "gemini/gemini-2.0-flash",
+            "model": "gemini/gemini-3.8-flash",
             "max_tokens": 8192,
             "temperature": 0.7,
             "top_p": 0.9
@@ -173,7 +173,7 @@
           "output_json_schema": "{\"type\": \"object\", \"properties\": {\"output\": {\"type\": \"string\"} } }",
           "has_fixed_output": false,
           "llm_info": {
-            "model": "openai/chatgpt-4o-latest",
+            "model": "openai/gpt-4o",
             "max_tokens": 4096,
             "temperature": 0.7,
             "top_p": 0.9
@@ -224,7 +224,7 @@
           "title": "SlackNotifyNode_1",
           "type": "object",
           "output_schema": {
-            "output": "string"
+            "status": "string"
           },
           "output_json_schema": "{\"properties\": {\"status\": {\"description\": \"Error message if the message was not sent successfully.\", \"title\": \"Status\", \"type\": \"string\"}}, \"required\": [\"status\"], \"title\": \"SlackNotifyNodeOutput\", \"type\": \"object\"}",
           "has_fixed_output": true,
@@ -293,7 +293,8 @@
     "test_inputs": [
       {
         "id": 1,
-        "blogpost_url": "https://blog.samaltman.com/three-observations"
+        "blogpost_url": "https://blog.samaltman.com/three-observations",
+        "paper_pdf_file": ""
       }
     ]
   },

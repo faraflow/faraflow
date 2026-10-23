@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import json
 import re
 from typing import Any, Dict, List, Literal, Optional, cast
@@ -340,9 +343,6 @@ variables listed above - do not invent new variables."
         # Remove any markdown code blocks if present
         if "```" in message:
             message = re.sub(r"```.*?```", "", message, flags=re.DOTALL).strip()
-        else:
-            # Fallback if response is not a string (shouldn't happen)
-            message = str(response)
 
         return {"message": message}
     except Exception as e:

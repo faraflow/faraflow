@@ -1,0 +1,89 @@
+# Copyright 2026 Alokin LLC
+# SPDX-License-Identifier: FCL-1.0-ALv2
+name: Build and Deploy Faraflow to Lightsail
+
+# Manual only: this needs the AWS secrets and variables described in the repository settings.
+on:
+  workflow_dispatch:
+
+env:
+  SERVICE_NAME: "pyspur"
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v5
+        env:
+          IMAGE_TAG: latest
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.AWS_ECR_REPO }}
+        with:
+          context: .
+          file: Dockerfile.backend
+          target: production
+          push: true
+          tags: "${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
+
+      - name: Install Lightsail CTL
+        run: |
+          sudo apt-get update && sudo apt-get -y install curl
+          curl https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl \
+            -o /usr/local/bin/lightsailctl
+          chmod +x /usr/local/bin/lightsailctl
+
+      - name: Deploy to Lightsail
+        env:
+          ECR_REPOSITORY: ${{ vars.AWS_ECR_REPO }}
+          IMAGE_TAG: latest
+        run: |
+          aws lightsail create-container-service-deployment \
+            --service-name ${{ env.SERVICE_NAME }} \
+            --containers "{
+              \"pyspur\": {
+                \"image\": \"$ECR_REPOSITORY:$IMAGE_TAG\",
+                \"environment\": {
+                  \"ENVIRONMENT\": \"production\",
+                  \"PYTHONUNBUFFERED\": \"1\",
+                  \"DEBUG\": \"False\",
+                  \"GITHUB_REPOSITORY\": \"${{ github.repository }}\",
+                  \"POSTGRES_DB\": \"${{ vars.POSTGRES_DB }}\",
+                  \"POSTGRES_USER\": \"${{ vars.POSTGRES_USER }}\",
+                  \"POSTGRES_PASSWORD\": \"${{ secrets.POSTGRES_PASSWORD }}\",
+                  \"POSTGRES_HOST\": \"${{ vars.POSTGRES_HOST }}\",
+                  \"POSTGRES_PORT\": \"${{ vars.POSTGRES_PORT }}\",
+                  \"PYSPUR_API_KEY\": \"${{ secrets.PYSPUR_API_KEY }}\",
+                  \"OPENAI_API_KEY\": \"${{ secrets.OPENAI_API_KEY }}\",
+                  \"GEMINI_API_KEY\": \"${{ secrets.GEMINI_API_KEY }}\",
+                  \"ANTHROPIC_API_KEY\": \"${{ secrets.ANTHROPIC_API_KEY }}\",
+                  \"XAI_API_KEY\": \"${{ secrets.XAI_API_KEY }}\",
+                  \"GOOGLE_API_KEY\": \"${{ secrets.GOOGLE_API_KEY }}\",
+                  \"DEEPSEEK_API_KEY\": \"${{ secrets.DEEPSEEK_API_KEY }}\",
+                  \"SERPER_API_KEY\": \"${{ secrets.SERPER_API_KEY }}\",
+                  \"JINA_API_KEY\": \"${{ secrets.JINA_API_KEY }}\"
+                },
+                \"ports\": {\"8000\": \"HTTP\"}
+              }
+            }" \
+            --public-endpoint "{
+              \"containerName\": \"pyspur\",
+              \"containerPort\": 8000,
+              \"healthCheck\": {\"path\": \"/health\", \"intervalSeconds\": 10, \"timeoutSeconds\": 5, \"healthyThreshold\": 2, \"unhealthyThreshold\": 3}
+            }"

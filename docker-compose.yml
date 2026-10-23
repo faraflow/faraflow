@@ -1,6 +1,9 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 services:
   backend:
-    image: ghcr.io/${GITHUB_REPOSITORY:-pyspur-dev/pyspur}-backend:${VERSION:-latest}
+    image: ghcr.io/${GITHUB_REPOSITORY:-faraflow/faraflow}-backend:${VERSION:-latest}
     command: bash /pyspur/backend/entrypoint.sh
     ports:
       - "${PYSPUR_PORT:-6080}:8000"

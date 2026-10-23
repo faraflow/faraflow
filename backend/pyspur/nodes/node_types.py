@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from typing import Dict, List
 
 from ..schemas.node_type_schemas import NodeTypeSchema
@@ -39,6 +42,11 @@ SUPPORTED_NODE_TYPES = {
             "node_type_name": "BestOfNNode",
             "module": ".nodes.llm.generative.best_of_n",
             "class_name": "BestOfNNode",
+        },
+        {
+            "node_type_name": "AskNode",
+            "module": ".nodes.llm.ask_node",
+            "class_name": "AskNode",
         },
     ],
     "Code Execution": [
@@ -174,12 +182,54 @@ SUPPORTED_NODE_TYPES = {
             "module": ".nodes.integrations.reddit.reddit_get_trending_subreddits",
             "class_name": "RedditGetTrendingSubredditsNode",
         },
+        {
+            "node_type_name": "PagespeedNode",
+            "module": ".nodes.integrations.google.pagespeed",
+            "class_name": "PagespeedNode",
+        },
+        {
+            "node_type_name": "SafeBrowsingNode",
+            "module": ".nodes.integrations.google.safebrowsing",
+            "class_name": "SafeBrowsingNode",
+        },
+        {
+            "node_type_name": "BeagleSecurity",
+            "module": ".nodes.integrations.driveup.beagle_security",
+            "class_name": "BeagleSecurityNode",
+        },
     ],
     "Search": [
         {
             "node_type_name": "ExaSearchNode",
             "module": ".nodes.search.exa.search",
             "class_name": "ExaSearchNode",
+        },
+        {
+            "node_type_name": "Serper",
+            "module": ".nodes.integrations.serper.serper",
+            "class_name": "SerperNode",
+        },
+        {
+            "node_type_name": "SerperSearch",
+            "module": ".nodes.integrations.serper.serper",
+            "class_name": "SerperSearchNode",
+        },
+    ],
+    "Web": [
+        {
+            "node_type_name": "RobotsNode",
+            "module": ".nodes.integrations.driveup.robots",
+            "class_name": "RobotsNode",
+        },
+        {
+            "node_type_name": "MetaDataScraper",
+            "module": ".nodes.integrations.driveup.metadata_scraper",
+            "class_name": "MetaDataScraper",
+        },
+        {
+            "node_type_name": "PlaywrightScraper",
+            "module": ".nodes.integrations.driveup.playwright_metadata_scraper",
+            "class_name": "PlaywrightScraper",
         },
     ],
     "Tools": [

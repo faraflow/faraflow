@@ -31,8 +31,9 @@
           "output_schema": {
             "initial_joke": "string"
           },
+          "output_json_schema": "{\"type\": \"object\", \"properties\": {\"initial_joke\": {\"type\": \"string\"}}, \"required\": [\"initial_joke\"]}",
           "llm_info": {
-            "model": "gpt-4o",
+            "model": "openai/gpt-4o",
             "max_tokens": 16384,
             "temperature": 0.7,
             "top_p": 0.9
@@ -59,8 +60,9 @@
           "output_schema": {
             "final_joke": "string"
           },
+          "output_json_schema": "{\"type\": \"object\", \"properties\": {\"final_joke\": {\"type\": \"string\"}}, \"required\": [\"final_joke\"]}",
           "llm_info": {
-            "model": "gpt-4o",
+            "model": "openai/gpt-4o",
             "max_tokens": 16384,
             "temperature": 0.7,
             "top_p": 0.9
@@ -87,8 +89,9 @@
           "output_schema": {
             "final_joke": "string"
           },
+          "output_json_schema": "{\"type\": \"object\", \"properties\": {\"final_joke\": {\"type\": \"string\"}}, \"required\": [\"final_joke\"]}",
           "llm_info": {
-            "model": "gpt-4o",
+            "model": "openai/gpt-4o",
             "max_tokens": 16384,
             "temperature": 0.7,
             "top_p": 0.9

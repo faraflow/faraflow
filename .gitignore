@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -14,8 +17,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -163,6 +166,7 @@ cython_debug/
 
 .DS_Store
 .vscode
+.idea
 
 # Ruff cache
 **/.ruff_cache/
@@ -176,3 +180,43 @@ prd/
 
 # package* in docs
 docs/package*
+# Claude Code local settings
+.claude/settings.local.json
+
+# Runtime data (uploaded datasets, batch-run outputs)
+backend/data/
+backend/datasets/
+backend/output_files/
+/proposals/README.md
+/proposals/RFC0001-pyspur-workflow-executor-behavior.md
+/proposals/RFC0002-python-editor-security-and-ui-improvements.md
+/proposals/RFC0003-agent-data-collection-access.md
+/proposals/RFC0004-timesfm-integration-in-pyspur.md
+/proposals/RFC0005-pyke-python-3-12-migration-and-pyspur-integration.md
+/proposals/RFC0006-gpt-5-x-responses-api-support.md
+/proposals/RFC0007-voice-integration-in-pyspur.md
+/proposals/RFC0008-pyspur-batch-api-queuing.md
+/proposals/RFC0009-api-output-node-filtering.md
+/proposals/RFC0010-pyspur-enterprise-device-integration.md
+/proposals/RFC0011-pyspur-horizontal-scalability.md
+/proposals/RFC0012-pyspur-workflow-self-improvement.md
+/proposals/RFC0013-workflow-marketplace-with-licensing.md
+/proposals/RFC0014-mcp-integration-in-pyspur.md
+/proposals/RFC0015-dubai-institute-foundation-models-integration.md
+/proposals/RFC0016-model-info-organization-for-pyspur.md
+/proposals/RFC0017-workflow-result-artifact-generation.md
+/proposals/RFC0018-workflow-cost-tracking.md
+/proposals/RFC0019-browser-use-cdp-and-accessibility.md
+/proposals/RFC0020-image-processing-in-pyspur.md
+/proposals/RFC0021-array-processing-in-pyspur.md
+/proposals/RFC0022-artcraft-integration-into-pyspur.md
+/proposals/RFC0023-integration-nodes.md
+/proposals/RFC0024-pyspur-rag-integration-points.md
+/proposals/RFC0025-vectorless-rag-integration.md
+/proposals/RFC0026-llm-workflow-improvements-and-hallucination-prevention.md
+/proposals/RFC0027-chatbot-agent-improvements.md
+/proposals/RFC0028-workflow-versioning-approaches.md
+/proposals/RFC0029-crdt-based-workflow-editing.md
+/proposals/RFC0030-enterprise-secrets-management.md
+/proposals/RFC0031-pyspur-authentication-and-authorization.md
+/localdocs/

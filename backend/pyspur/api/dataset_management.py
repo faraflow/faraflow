@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import os
 from datetime import datetime, timezone
 from typing import List
@@ -17,7 +20,9 @@ router = APIRouter()
 def save_file(file: UploadFile) -> str:
     filename = file.filename
     assert filename is not None
-    file_location = os.path.join(os.path.dirname(__file__), "..", "..", "datasets", filename)
+    datasets_dir = os.path.join(os.path.dirname(__file__), "..", "..", "datasets")
+    os.makedirs(datasets_dir, exist_ok=True)
+    file_location = os.path.join(datasets_dir, filename)
     with open(file_location, "wb+") as file_object:
         file_object.write(file.file.read())
     return file_location
@@ -115,7 +120,7 @@ def list_dataset_runs(dataset_id: str, db: Session = Depends(get_db)):
     runs = (
         db.query(RunModel)
         .filter(RunModel.input_dataset_id == dataset_id)
-        .order_by(RunModel.created_at.desc())
+        .order_by(RunModel.start_time.desc())
         .all()
     )
     return runs

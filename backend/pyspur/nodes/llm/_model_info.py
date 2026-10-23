@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from enum import Enum
 from typing import Optional, Set
 
@@ -83,6 +86,16 @@ class LLMModel(BaseModel):
 
 class LLMModels(str, Enum):
     # OpenAI Models
+    GPT_5_5 = "openai/gpt-5.5"
+    GPT_5_5_PRO = "openai/gpt-5.5-pro"
+    GPT_5_4 = "openai/gpt-5.4"
+    GPT_5_4_MINI = "openai/gpt-5.4-mini"
+    GPT_5_4_NANO = "openai/gpt-5.4-nano"
+    GPT_4_1 = "openai/gpt-4.1"
+    GPT_4_1_MINI = "openai/gpt-4.1-mini"
+    GPT_4_1_NANO = "openai/gpt-4.1-nano"
+    O3 = "openai/o3"
+    O4_MINI = "openai/o4-mini"
     O1_PRO = "openai/o1-pro"
     O3_MINI = "openai/o3-mini"
     O3_MINI_2025_01_31 = "openai/o3-mini-2025-01-31"
@@ -103,12 +116,26 @@ class LLMModels(str, Enum):
     AZURE_GPT_35_TURBO = "azure/gpt-35-turbo"
 
     # Anthropic Models
+    CLAUDE_OPUS_4_7 = "anthropic/claude-opus-4-7"
+    CLAUDE_SONNET_4_6 = "anthropic/claude-sonnet-4-6"
+    CLAUDE_HAIKU_4_5 = "anthropic/claude-haiku-4-5"
+    CLAUDE_OPUS_4_6 = "anthropic/claude-opus-4-6"
+    CLAUDE_SONNET_4_5 = "anthropic/claude-sonnet-4-5"
+    CLAUDE_OPUS_4_5 = "anthropic/claude-opus-4-5"
+    CLAUDE_OPUS_4_1 = "anthropic/claude-opus-4-1"
     CLAUDE_3_5_SONNET_LATEST = "anthropic/claude-3-5-sonnet-latest"
     CLAUDE_3_5_HAIKU_LATEST = "anthropic/claude-3-5-haiku-latest"
     CLAUDE_3_OPUS_LATEST = "anthropic/claude-3-opus-latest"
-    CLAUDE_3_7_SONNET_LATEST = "anthropic/claude-3-7-sonnet-latest"
 
     # Google Models
+    GEMINI_2_5_PRO = "gemini/gemini-2.5-pro"
+    GEMINI_2_5_FLASH = "gemini/gemini-2.5-flash"
+    GEMINI_2_5_FLASH_LITE = "gemini/gemini-2.5-flash-lite"
+    GEMINI_3_1_PRO_PREVIEW = "gemini/gemini-3.1-pro-preview"
+    GEMINI_3_FLASH_PREVIEW = "gemini/gemini-3-flash-preview"
+    GEMINI_3_5_FLASH = "gemini/gemini-3.5-flash"
+    GEMINI_3_5_FLASH_LITE = "gemini/gemini-3.5-flash-lite"
+    GEMINI_3_8_FLASH = "gemini/gemini-3.8-flash"
     GEMINI_2_0_FLASH_EXP = "gemini/gemini-2.0-flash-exp"
     GEMINI_2_0_FLASH = "gemini/gemini-2.0-flash"
     GEMINI_1_5_PRO = "gemini/gemini-1.5-pro"
@@ -125,6 +152,7 @@ class LLMModels(str, Enum):
     OLLAMA_DEEPSEEK_R1 = "ollama/deepseek-r1"
     OLLAMA_PHI4 = "ollama/phi4"
     OLLAMA_LLAMA3_3_70B = "ollama/llama3.3:70b"
+    OLLAMA_LLAMA3_2 = "ollama/llama3.2"
     OLLAMA_LLAMA3_2_3B = "ollama/llama3.2:3b"
     OLLAMA_LLAMA3_2_1B = "ollama/llama3.2:1b"
     OLLAMA_LLAMA3_1_8B = "ollama/llama3.1:8b"
@@ -146,6 +174,92 @@ class LLMModels(str, Enum):
     @classmethod
     def get_model_info(cls, model_id: str) -> LLMModel | None:
         model_registry = {
+            cls.GPT_5_5.value: LLMModel(
+                id=cls.GPT_5_5.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-5.5",
+                constraints=ModelConstraints(
+                    max_tokens=128000, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.GPT_5_5_PRO.value: LLMModel(
+                id=cls.GPT_5_5_PRO.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-5.5 Pro",
+                constraints=ModelConstraints(
+                    max_tokens=128000, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.GPT_5_4.value: LLMModel(
+                id=cls.GPT_5_4.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-5.4",
+                constraints=ModelConstraints(
+                    max_tokens=128000, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.GPT_5_4_MINI.value: LLMModel(
+                id=cls.GPT_5_4_MINI.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-5.4 Mini",
+                constraints=ModelConstraints(
+                    max_tokens=128000, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.GPT_5_4_NANO.value: LLMModel(
+                id=cls.GPT_5_4_NANO.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-5.4 Nano",
+                constraints=ModelConstraints(
+                    max_tokens=128000, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.GPT_4_1.value: LLMModel(
+                id=cls.GPT_4_1.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-4.1",
+                constraints=ModelConstraints(
+                    max_tokens=32768, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.GPT_4_1_MINI.value: LLMModel(
+                id=cls.GPT_4_1_MINI.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-4.1 Mini",
+                constraints=ModelConstraints(
+                    max_tokens=32768, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.GPT_4_1_NANO.value: LLMModel(
+                id=cls.GPT_4_1_NANO.value,
+                provider=LLMProvider.OPENAI,
+                name="GPT-4.1 Nano",
+                constraints=ModelConstraints(
+                    max_tokens=32768, max_temperature=2.0
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.O3.value: LLMModel(
+                id=cls.O3.value,
+                provider=LLMProvider.OPENAI,
+                name="O3",
+                constraints=ModelConstraints(
+                    max_tokens=100000,
+                    max_temperature=2.0,
+                    supports_max_tokens=False,
+                    supports_temperature=False,
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.O4_MINI.value: LLMModel(
+                id=cls.O4_MINI.value,
+                provider=LLMProvider.OPENAI,
+                name="O4 Mini",
+                constraints=ModelConstraints(
+                    max_tokens=100000,
+                    max_temperature=2.0,
+                    supports_max_tokens=False,
+                    supports_temperature=False,
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
             cls.O3_MINI.value: LLMModel(
                 id=cls.O3_MINI.value,
                 provider=LLMProvider.OPENAI,
@@ -283,7 +397,7 @@ class LLMModels(str, Enum):
             cls.CHATGPT_4O_LATEST.value: LLMModel(
                 id=cls.CHATGPT_4O_LATEST.value,
                 provider=LLMProvider.OPENAI,
-                name="ChatGPT-4 Optimized Latest",
+                name="ChatGPT-4o Latest (Legacy)",
                 constraints=ModelConstraints(
                     max_tokens=4096, max_temperature=2.0
                 ).add_mime_categories({MimeCategory.IMAGES}),
@@ -302,6 +416,81 @@ class LLMModels(str, Enum):
                 constraints=ModelConstraints(max_tokens=4096, max_temperature=2.0),
             ),
             # Anthropic Models
+            cls.CLAUDE_OPUS_4_7.value: LLMModel(
+                id=cls.CLAUDE_OPUS_4_7.value,
+                provider=LLMProvider.ANTHROPIC,
+                name="Claude Opus 4.7",
+                constraints=ModelConstraints(
+                    max_tokens=128000,
+                    max_temperature=1.0,
+                    supports_thinking=True,
+                    thinking_budget_tokens=1024,
+                ).add_mime_categories({MimeCategory.IMAGES, MimeCategory.DOCUMENTS}),
+            ),
+            cls.CLAUDE_SONNET_4_6.value: LLMModel(
+                id=cls.CLAUDE_SONNET_4_6.value,
+                provider=LLMProvider.ANTHROPIC,
+                name="Claude Sonnet 4.6",
+                constraints=ModelConstraints(
+                    max_tokens=64000,
+                    max_temperature=1.0,
+                    supports_thinking=True,
+                    thinking_budget_tokens=1024,
+                ).add_mime_categories({MimeCategory.IMAGES, MimeCategory.DOCUMENTS}),
+            ),
+            cls.CLAUDE_HAIKU_4_5.value: LLMModel(
+                id=cls.CLAUDE_HAIKU_4_5.value,
+                provider=LLMProvider.ANTHROPIC,
+                name="Claude Haiku 4.5",
+                constraints=ModelConstraints(
+                    max_tokens=64000,
+                    max_temperature=1.0,
+                ).add_mime_categories({MimeCategory.IMAGES}),
+            ),
+            cls.CLAUDE_OPUS_4_6.value: LLMModel(
+                id=cls.CLAUDE_OPUS_4_6.value,
+                provider=LLMProvider.ANTHROPIC,
+                name="Claude Opus 4.6",
+                constraints=ModelConstraints(
+                    max_tokens=128000,
+                    max_temperature=1.0,
+                    supports_thinking=True,
+                    thinking_budget_tokens=1024,
+                ).add_mime_categories({MimeCategory.IMAGES, MimeCategory.DOCUMENTS}),
+            ),
+            cls.CLAUDE_SONNET_4_5.value: LLMModel(
+                id=cls.CLAUDE_SONNET_4_5.value,
+                provider=LLMProvider.ANTHROPIC,
+                name="Claude Sonnet 4.5",
+                constraints=ModelConstraints(
+                    max_tokens=64000,
+                    max_temperature=1.0,
+                    supports_thinking=True,
+                    thinking_budget_tokens=1024,
+                ).add_mime_categories({MimeCategory.IMAGES, MimeCategory.DOCUMENTS}),
+            ),
+            cls.CLAUDE_OPUS_4_5.value: LLMModel(
+                id=cls.CLAUDE_OPUS_4_5.value,
+                provider=LLMProvider.ANTHROPIC,
+                name="Claude Opus 4.5",
+                constraints=ModelConstraints(
+                    max_tokens=64000,
+                    max_temperature=1.0,
+                    supports_thinking=True,
+                    thinking_budget_tokens=1024,
+                ).add_mime_categories({MimeCategory.IMAGES, MimeCategory.DOCUMENTS}),
+            ),
+            cls.CLAUDE_OPUS_4_1.value: LLMModel(
+                id=cls.CLAUDE_OPUS_4_1.value,
+                provider=LLMProvider.ANTHROPIC,
+                name="Claude Opus 4.1",
+                constraints=ModelConstraints(
+                    max_tokens=32000,
+                    max_temperature=1.0,
+                    supports_thinking=True,
+                    thinking_budget_tokens=1024,
+                ).add_mime_categories({MimeCategory.IMAGES, MimeCategory.DOCUMENTS}),
+            ),
             cls.CLAUDE_3_5_SONNET_LATEST.value: LLMModel(
                 id=cls.CLAUDE_3_5_SONNET_LATEST.value,
                 provider=LLMProvider.ANTHROPIC,
@@ -329,18 +518,142 @@ class LLMModels(str, Enum):
                     max_temperature=1.0,
                 ).add_mime_categories({MimeCategory.IMAGES}),
             ),
-            cls.CLAUDE_3_7_SONNET_LATEST.value: LLMModel(
-                id=cls.CLAUDE_3_7_SONNET_LATEST.value,
-                provider=LLMProvider.ANTHROPIC,
-                name="Claude 3.7 Sonnet Latest",
-                constraints=ModelConstraints(
-                    max_tokens=8192,
-                    max_temperature=1.0,
-                    supports_thinking=True,
-                    thinking_budget_tokens=1024,
-                ).add_mime_categories({MimeCategory.IMAGES, MimeCategory.DOCUMENTS}),
-            ),
             # Google Models
+            cls.GEMINI_2_5_PRO.value: LLMModel(
+                id=cls.GEMINI_2_5_PRO.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 2.5 Pro",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.DOCUMENTS,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
+            cls.GEMINI_2_5_FLASH.value: LLMModel(
+                id=cls.GEMINI_2_5_FLASH.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 2.5 Flash",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
+            cls.GEMINI_2_5_FLASH_LITE.value: LLMModel(
+                id=cls.GEMINI_2_5_FLASH_LITE.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 2.5 Flash-Lite",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.DOCUMENTS,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
+            cls.GEMINI_3_1_PRO_PREVIEW.value: LLMModel(
+                id=cls.GEMINI_3_1_PRO_PREVIEW.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 3.1 Pro Preview",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.DOCUMENTS,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
+            cls.GEMINI_3_FLASH_PREVIEW.value: LLMModel(
+                id=cls.GEMINI_3_FLASH_PREVIEW.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 3 Flash Preview",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.DOCUMENTS,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
+            cls.GEMINI_3_8_FLASH.value: LLMModel(
+                id=cls.GEMINI_3_8_FLASH.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 3.8 Flash",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.DOCUMENTS,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
+            cls.GEMINI_3_5_FLASH.value: LLMModel(
+                id=cls.GEMINI_3_5_FLASH.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 3.5 Flash",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.DOCUMENTS,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
+            cls.GEMINI_3_5_FLASH_LITE.value: LLMModel(
+                id=cls.GEMINI_3_5_FLASH_LITE.value,
+                provider=LLMProvider.GEMINI,
+                name="Gemini 3.5 Flash Lite",
+                constraints=ModelConstraints(
+                    max_tokens=65536,
+                    max_temperature=2.0,
+                ).add_mime_categories(
+                    {
+                        MimeCategory.IMAGES,
+                        MimeCategory.AUDIO,
+                        MimeCategory.VIDEO,
+                        MimeCategory.DOCUMENTS,
+                        MimeCategory.TEXT,
+                    }
+                ),
+            ),
             cls.GEMINI_1_5_PRO.value: LLMModel(
                 id=cls.GEMINI_1_5_PRO.value,
                 provider=LLMProvider.GEMINI,
@@ -465,6 +778,12 @@ class LLMModels(str, Enum):
                 provider=LLMProvider.OLLAMA,
                 name="Llama 3.3 (70B)",
                 constraints=ModelConstraints(max_tokens=4096, max_temperature=2.0),
+            ),
+            cls.OLLAMA_LLAMA3_2.value: LLMModel(
+                id=cls.OLLAMA_LLAMA3_2.value,
+                provider=LLMProvider.OLLAMA,
+                name="Llama 3.2",
+                constraints=ModelConstraints(max_tokens=4096, max_temperature=2.0, supports_JSON_output=False),
             ),
             cls.OLLAMA_LLAMA3_2_3B.value: LLMModel(
                 id=cls.OLLAMA_LLAMA3_2_3B.value,

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from typing import Any, Dict
 
 from pydantic import BaseModel, Field, create_model
@@ -64,9 +67,14 @@ class OutputNode(BaseNode):
                 __config__=None,
                 __module__=self.__module__,
             )
+            output_dict: Dict[str, Any] = {
+                output_key: get_nested_field(input_key, input)
+                for output_key, input_key in self.config.output_map.items()
+            }
         else:
-            # If user provided no mappings, just return everything
-            model_fields = {k: (type(v), ...) for k, v in input.model_dump().items()}
+            # No output_map — pass all inputs through as-is
+            output_dict = input.model_dump()
+            model_fields = {k: (type(v), ...) for k, v in output_dict.items()}
             self.output_model = create_model(
                 f"{self.name}",
                 **model_fields,
@@ -74,9 +82,5 @@ class OutputNode(BaseNode):
                 __config__=None,
                 __module__=self.__module__,
             )
-
-        output_dict: Dict[str, Any] = {}
-        for output_key, input_key in self.config.output_map.items():
-            output_dict[output_key] = get_nested_field(input_key, input)
 
         return self.output_model(**output_dict)

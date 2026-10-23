@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 """Main module for the PySpur CLI."""
 
 import os
@@ -117,11 +120,6 @@ def init(
             "    b. Start the server with 'pyspur serve'"
         )
 
-        print(
-            "[yellow]Note: We collect anonymous telemetry data that helps us improve PySpur."
-            " You can disable this by setting DISABLE_ANONYMOUS_TELEMETRY=true in .env[/yellow]"
-        )
-
     except Exception as e:
         print(f"[red]Error initializing project: {str(e)}[/red]")
         raise typer.Exit(1) from e
@@ -158,12 +156,6 @@ def serve(
         # Run database migrations
         print("[yellow]Running database migrations...[/yellow]")
         run_migrations()
-
-        if os.getenv("DISABLE_ANONYMOUS_TELEMETRY", "false").lower() != "true":
-            print(
-                "[yellow]Note: We collect anonymous telemetry data that helps us improve PySpur."
-                " You can disable this by setting DISABLE_ANONYMOUS_TELEMETRY=true in .env[/yellow]"
-            )
 
         # Start the server
         print(f"\n[green]Starting PySpur server at http://{host}:{port} 🚀[/green]")

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -216,8 +219,10 @@ async def process_vector_index_creation(
         await update_index_progress(index_id, status="failed", error_message=str(e), db=db)
 
 
-async def update_collection_status(collection_id: str, status: str, db: Session) -> None:
-    """Update document collection status in database."""
+async def update_collection_status(
+    collection_id: str, status: str, db: Session, chunk_count: Optional[int] = None
+) -> None:
+    """Update document collection status (and optionally its chunk count) in the database."""
     try:
         collection = (
             db.query(DocumentCollectionModel)
@@ -231,6 +236,8 @@ async def update_collection_status(collection_id: str, status: str, db: Session)
                 "ready" if status == "ready" else "failed" if status == "failed" else "processing",
             )
             collection.status = new_status
+            if chunk_count is not None:
+                collection.chunk_count = chunk_count
             collection.updated_at = datetime.now(timezone.utc)
             db.commit()
     except Exception as e:
@@ -259,13 +266,14 @@ async def process_document_collection(
                 db=db,
             )
 
-        await doc_store.process_documents(
+        docs_with_chunks = await doc_store.process_documents(
             file_infos,
             config,
             progress_callback,
         )
         # Update collection status to ready on successful completion
-        await update_collection_status(collection_id, "ready", db)
+        total_chunks = sum(len(doc.chunks) for doc in docs_with_chunks)
+        await update_collection_status(collection_id, "ready", db, chunk_count=total_chunks)
     except Exception as e:
         logger.error(f"Error processing document collection: {e}")
         await update_collection_status(collection_id, "failed", db)

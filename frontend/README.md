@@ -1,3 +1,8 @@
+<!--
+  Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+  Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+  SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
+-->
 # Development
 
 ## Adding an NPM Package
@@ -11,7 +16,7 @@ If you need to add a package to a running Docker container for immediate use, fo
 1. Access the running container:
 
 ```sh
-docker exec -it pyspur_dev-frontend-1 sh
+docker compose -f docker-compose.dev.yml exec frontend sh
 ```
 
 2. Install the package:
@@ -23,5 +28,5 @@ npm install <package_name>
 3. Restart the container to apply changes:
 
 ```sh
-docker restart pyspur_dev-frontend-1
+docker compose -f docker-compose.dev.yml restart frontend
 ```

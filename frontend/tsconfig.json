@@ -1,43 +1,18 @@
 {
+    "extends": "./.svelte-kit/tsconfig.json",
     "compilerOptions": {
-        "target": "es2016",
-        "module": "esnext",
-        "baseUrl": ".",
-        "plugins": [
-            {
-                "name": "next"
-            }
-        ],
-        "paths": {
-            "@/*": ["./src/*"]
-        },
-        "esModuleInterop": true,
-        "forceConsistentCasingInFileNames": true,
-        "strict": false,
-        "skipLibCheck": true,
-        "lib": ["dom", "dom.iterable", "esnext"],
+        "target": "ESNext",
+        "useDefineForClassFields": true,
+        "module": "ESNext",
+        "moduleResolution": "bundler",
         "allowJs": true,
         "checkJs": true,
-        "noEmit": true,
-        "jsx": "preserve",
-        "moduleResolution": "bundler",
+        "strict": false,
+        "skipLibCheck": true,
+        "esModuleInterop": true,
         "resolveJsonModule": true,
-        "isolatedModules": true,
-        "incremental": true,
-        "noErrorTruncation": true,
-        "preserveWatchOutput": true
+        "noErrorTruncation": true
     },
-    "include": [
-        "next-env.d.ts",
-        "**/*.ts",
-        "**/*.tsx",
-        "src/**/*",
-        "postcss.config.js",
-        "tailwind.config.js",
-        "src/types/*.d.ts",
-        "**/*.css",
-        "**/*.module.css",
-        "src/types/**/*.d.ts"
-    ],
+    "include": ["src/**/*", "src/**/*.svelte"],
     "exclude": ["node_modules"]
 }

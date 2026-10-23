@@ -2,7 +2,7 @@
   "name": "Ollama Model Comparison",
   "metadata": {
     "name": "Ollama Model Comparison",
-    "description": "Compare the performance of different Ollama models. Make sure you have Ollama installed and running.",
+    "description": "Compare the performance of different Ollama models. Make sure Ollama is installed and running, and pull the models first: ollama pull llama3.2, ollama pull gemma2, ollama pull mistral.",
     "features": ["Llama 3.2", "Gemma 2", "Mistral v0.3"]
   },
   "definition": {
@@ -13,7 +13,7 @@
         "node_type": "InputNode",
         "config": {
           "output_schema": {
-            "input_1": "str"
+            "input_1": "string"
           },
           "enforce_schema": false,
           "title": "input_prompt"
@@ -32,16 +32,17 @@
           "title": "Llama3_2",
           "type": "object",
           "output_schema": {
-            "output": "str"
+            "output": "string"
           },
+          "output_json_schema": "{\"type\": \"object\", \"properties\": {\"output\": {\"type\": \"string\"}}, \"required\": [\"output\"]}",
           "llm_info": {
             "model": "ollama/llama3.2",
-            "max_tokens": 16384,
+            "max_tokens": 4096,
             "temperature": 0.7,
             "top_p": 0.9
           },
           "system_message": "You are a helpful assistant.",
-          "user_message": "<p>{{input_prompt.input_1}}</p>",
+          "user_message": "{{input_prompt.input_1}}",
           "few_shot_examples": null
         },
         "coordinates": {
@@ -58,16 +59,17 @@
           "title": "Gemma2",
           "type": "object",
           "output_schema": {
-            "output": "str"
+            "output": "string"
           },
+          "output_json_schema": "{\"type\": \"object\", \"properties\": {\"output\": {\"type\": \"string\"}}, \"required\": [\"output\"]}",
           "llm_info": {
             "model": "ollama/gemma2",
-            "max_tokens": 16384,
+            "max_tokens": 4096,
             "temperature": 0.7,
             "top_p": 0.9
           },
           "system_message": "You are a helpful assistant.",
-          "user_message": "<p>{{input_prompt.input_1}}</p>",
+          "user_message": "{{input_prompt.input_1}}",
           "few_shot_examples": null
         },
         "coordinates": {
@@ -84,16 +86,17 @@
           "title": "Mistral_03",
           "type": "object",
           "output_schema": {
-            "output": "str"
+            "output": "string"
           },
+          "output_json_schema": "{\"type\": \"object\", \"properties\": {\"output\": {\"type\": \"string\"}}, \"required\": [\"output\"]}",
           "llm_info": {
             "model": "ollama/mistral",
-            "max_tokens": 16384,
+            "max_tokens": 4096,
             "temperature": 0.7,
             "top_p": 0.9
           },
           "system_message": "You are a helpful assistant.",
-          "user_message": "<p>{{input_prompt.input_1}}</p>",
+          "user_message": "{{input_prompt.input_1}}",
           "few_shot_examples": null
         },
         "coordinates": {

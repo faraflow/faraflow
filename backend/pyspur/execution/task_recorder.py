@@ -1,9 +1,13 @@
-from datetime import datetime
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..models.run_model import RunModel
 from ..models.task_model import TaskModel, TaskStatus
 from ..schemas.workflow_schemas import WorkflowDefinitionSchema
 
@@ -194,5 +198,18 @@ class TaskRecorder:
                 for k, v in subworkflow_output.items()
             }
         self.db.add(task)
+        self._touch_run()
         self.db.commit()
         return
+
+    def _touch_run(self) -> None:
+        """Mark the parent run dirty so its version/updated_at bump on the next
+        commit (via RunModel's before_update listener).
+
+        TaskRecorder shares the executor's session, so this resolves to the same
+        identity-mapped RunModel instance the executor holds — keeping the
+        version counter monotonic across task updates and the final status flip.
+        """
+        run = self.db.query(RunModel).filter(RunModel.id == self.run_id).first()
+        if run is not None:
+            run.updated_at = datetime.now(timezone.utc)

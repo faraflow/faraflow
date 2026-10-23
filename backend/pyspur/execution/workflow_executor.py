@@ -1,10 +1,13 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import asyncio
 import traceback
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
-from pydantic import ValidationError
+from pydantic import ValidationError, create_model
 
 from ..models.run_model import RunModel, RunStatus
 from ..models.task_model import TaskStatus
@@ -33,6 +36,14 @@ class UnconnectedNodeError(Exception):
     pass
 
 
+class SessionNotFoundError(Exception):
+    """Raised when a chatbot run references a session_id that doesn't exist."""
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        super().__init__(f"Session '{session_id}' not found")
+
+
 class WorkflowExecutor:
     """Handles the execution of a workflow."""
 
@@ -43,6 +54,8 @@ class WorkflowExecutor:
         task_recorder: Optional["TaskRecorder"] = None,
         context: Optional[WorkflowExecutionContext] = None,
         resumed_node_ids: Optional[List[str]] = None,
+        original_outputs: Optional[Dict[str, Dict[str, Any]]] = None,
+        always_run_node_ids: Optional[List[str]] = None,
     ):
         # Convert WorkflowModel to WorkflowDefinitionSchema if needed
         if isinstance(workflow, WorkflowModel):
@@ -65,6 +78,12 @@ class WorkflowExecutor:
         self._outputs: Dict[str, Optional[BaseNodeOutput]] = {}
         self._failed_nodes: Set[str] = set()
         self._resumed_node_ids: Set[str] = set(resumed_node_ids or [])
+        # Early cutoff for continue runs: node_id -> serialized outputs recorded by
+        # the original run's COMPLETED tasks. A node reuses its original output when
+        # every dependency's output is identical to the original — i.e. results have
+        # not diverged yet. Nodes in _always_run_node_ids execute unconditionally.
+        self._original_outputs: Dict[str, Dict[str, Any]] = original_outputs or {}
+        self._always_run_node_ids: Set[str] = set(always_run_node_ids or [])
         self._build_node_dict()
         self._build_dependencies()
 
@@ -428,7 +447,23 @@ class WorkflowExecutor:
         node_input = {}
         try:
             if node_id in self._outputs:
-                return self._outputs[node_id]
+                output = self._outputs[node_id]
+                # If a task was created for this node but it's still PENDING/RUNNING,
+                # mark it COMPLETED now so the DB reflects the cached execution result.
+                if self.task_recorder and node_id in self.task_recorder.tasks:
+                    task = self.task_recorder.tasks[node_id]
+                    if task.status not in (
+                        TaskStatus.COMPLETED,
+                        TaskStatus.PAUSED,
+                        TaskStatus.FAILED,
+                    ):
+                        self.task_recorder.update_task(
+                            node_id=node_id,
+                            status=TaskStatus.COMPLETED,
+                            outputs=self._serialize_output(output) or {},
+                            end_time=datetime.now(),
+                        )
+                return output
 
             # Check if this node already has a completed task
             if self.task_recorder and node_id in self.task_recorder.tasks:
@@ -442,7 +477,19 @@ class WorkflowExecutor:
                             node_type_name=node.node_type,
                             config=node.config,
                         )
-                        node_output = node_instance.output_model.model_validate(task.outputs)
+                        # Same dynamic-model fallback as in _execute_workflow:
+                        # RouterNode/PythonFuncNode build their output_model in run(),
+                        # so the static class has no fields and model_validate silently
+                        # drops everything. Use a passthrough model instead.
+                        if not node_instance.output_model.model_fields and task.outputs:
+                            dynamic_cls = create_model(
+                                "CachedOutput",
+                                __base__=BaseNodeOutput,
+                                **{k: (Optional[Any], None) for k in task.outputs},
+                            )
+                            node_output = dynamic_cls.model_validate(task.outputs)
+                        else:
+                            node_output = node_instance.output_model.model_validate(task.outputs)
                         self._outputs[node_id] = node_output
                         return node_output
                     except Exception as e:
@@ -589,6 +636,45 @@ class WorkflowExecutor:
             # Remove None values from input
             node_input = {k: v for k, v in node_input.items() if v is not None}
 
+            # Output-equality early cutoff (continue-from-node runs): forced nodes
+            # always re-execute, but any other node with a recorded original output
+            # can reuse it when every dependency's fresh output is identical to what
+            # the original run recorded — i.e. results have not diverged yet. As
+            # soon as an upstream output differs (LLM nondeterminism, changed
+            # config, changed inputs), this check fails down that branch and nodes
+            # re-execute normally.
+            if (
+                node_id not in self._always_run_node_ids
+                and node.node_type != "InputNode"
+                and self._original_outputs.get(node_id)
+            ):
+                deps_unchanged = all(
+                    dep_id in self._original_outputs
+                    and self._serialize_output(self._outputs.get(dep_id))
+                    == self._original_outputs[dep_id]
+                    for dep_id in dependency_ids
+                )
+                if deps_unchanged:
+                    reused_output = self._validate_stored_output(
+                        node, self._original_outputs[node_id]
+                    )
+                    if reused_output is not None:
+                        if self.task_recorder:
+                            self.task_recorder.update_task(
+                                node_id=node_id,
+                                status=TaskStatus.COMPLETED,
+                                inputs={
+                                    dep_title: output.model_dump()
+                                    if hasattr(output, "model_dump")
+                                    else output
+                                    for dep_title, output in node_input.items()
+                                },
+                                outputs=self._original_outputs[node_id],
+                                end_time=datetime.now(),
+                            )
+                        self._outputs[node_id] = reused_output
+                        return reused_output
+
             # update task recorder with inputs
             if self.task_recorder:
                 self.task_recorder.update_task(
@@ -705,6 +791,35 @@ class WorkflowExecutor:
                 )
             raise e
 
+    def _validate_stored_output(
+        self, node: WorkflowNodeSchema, outputs: Dict[str, Any]
+    ) -> Optional[BaseNodeOutput]:
+        """Validate stored task outputs into the node's output model.
+
+        Nodes like RouterNode and PythonFuncNode build their output_model
+        dynamically inside run() — the static class has no fields, so
+        model_validate would silently drop all stored data. Fall back to a
+        generic passthrough model built from the stored keys in that case.
+        Returns None if validation fails.
+        """
+        try:
+            node_instance = NodeFactory.create_node(
+                node_name=node.title,
+                node_type_name=node.node_type,
+                config=node.config,
+            )
+            if not node_instance.output_model.model_fields and outputs:
+                dynamic_cls = create_model(
+                    "StoredOutput",
+                    __base__=BaseNodeOutput,
+                    **{k: (Optional[Any], None) for k in outputs},
+                )
+                return dynamic_cls.model_validate(outputs)
+            return node_instance.output_model.model_validate(outputs)
+        except Exception as e:
+            print(f"Error validating stored outputs for node {node.id}: {e}")
+            return None
+
     def _serialize_output(self, output: Optional[BaseNodeOutput]) -> Optional[Dict[str, Any]]:
         """Serialize node outputs, handling datetime objects."""
         if output is None:
@@ -737,11 +852,25 @@ class WorkflowExecutor:
             for node_id, output in precomputed_outputs.items():
                 try:
                     if isinstance(output, dict):
-                        self._outputs[node_id] = NodeFactory.create_node(
+                        node_obj = NodeFactory.create_node(
                             node_name=self._node_dict[node_id].title,
                             node_type_name=self._node_dict[node_id].node_type,
                             config=self._node_dict[node_id].config,
-                        ).output_model.model_validate(output)
+                        )
+                        # Nodes like RouterNode and PythonFuncNode build their
+                        # output_model dynamically inside run() — the static class
+                        # has no fields, so model_validate silently drops all stored
+                        # data. Fall back to a generic passthrough model built from
+                        # the stored keys so getattr() works in _execute_node.
+                        if not node_obj.output_model.model_fields and output:
+                            dynamic_cls = create_model(
+                                "PrecomputedOutput",
+                                __base__=BaseNodeOutput,
+                                **{k: (Optional[Any], None) for k in output},
+                            )
+                            self._outputs[node_id] = dynamic_cls.model_validate(output)
+                        else:
+                            self._outputs[node_id] = node_obj.output_model.model_validate(output)
                     else:
                         # If output is a list of dicts, do not validate the output
                         # these are outputs of loop nodes,
@@ -879,6 +1008,16 @@ class WorkflowExecutor:
             session_id = input.get("session_id")
             user_message = input.get("user_message")
             message_history = input.get("message_history", [])
+
+            if session_id and self.context and self.context.db_session:
+                session_exists = (
+                    self.context.db_session.query(SessionModel.id)
+                    .filter(SessionModel.id == session_id)
+                    .first()
+                    is not None
+                )
+                if not session_exists:
+                    raise SessionNotFoundError(session_id)
 
             if session_id and user_message:
                 if len(message_history) == 0:

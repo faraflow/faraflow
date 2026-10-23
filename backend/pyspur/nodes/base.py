@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import json
 from abc import ABC, abstractmethod
 from hashlib import md5
@@ -129,14 +132,21 @@ class BaseNode(ABC):
             "array": list,
             "object": dict,
         }
+        def _field_def(field_type: Any):
+            # A trailing "?" marks the field as nullable, e.g. "number?" -> Optional[float]
+            # with a default of None, so a node may legitimately emit None for that field
+            # without failing output validation.
+            nullable = isinstance(field_type, str) and field_type.endswith("?")
+            base_type = field_type[:-1] if nullable else field_type
+            if base_type in field_type_to_python_type:
+                py_type = field_type_to_python_type[base_type]
+                return (Optional[py_type], None) if nullable else (py_type, ...)
+            return (field_type, ...)  # try as is
+
         return create_model(
             f"{self.name}",
             **{
-                field_name: (
-                    (field_type_to_python_type[field_type], ...)
-                    if field_type in field_type_to_python_type
-                    else (field_type, ...)  # try as is
-                )
+                field_name: _field_def(field_type)
                 for field_name, field_type in output_schema.items()
             },
             __base__=BaseNodeOutput,

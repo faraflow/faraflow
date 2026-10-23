@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import json
 import shutil
 from datetime import datetime, timezone
@@ -33,6 +36,7 @@ from ..schemas.workflow_schemas import (
     SpurType,
     WorkflowCreateRequestSchema,
     WorkflowDefinitionSchema,
+    WorkflowLinkSchema,
     WorkflowNodeSchema,
     WorkflowResponseSchema,
     WorkflowVersionResponseSchema,
@@ -131,7 +135,26 @@ def create_a_new_workflow_definition(
             "session_id": "string",
             "message_history": "List[Dict[str, str]]",
         }
-        # Create output node with required chatbot fields
+        # Create a default LLM node, wired so a fresh chatbot answers out of the box:
+        # message history is read from the input node, and the user message is
+        # rendered as plain text rather than a raw JSON dump of the whole input.
+        llm_node_config = {
+            "llm_info": {"model": "openai/gpt-4o", "max_tokens": 16384, "temperature": 0.7},
+            "system_message": "You are a helpful assistant.",
+            "user_message": "{{input_node.user_message}}",
+            "output_schema": {"output": "string"},
+            "output_json_schema": json.dumps(
+                {
+                    "type": "object",
+                    "properties": {"output": {"type": "string"}},
+                }
+            ),
+            "enable_message_history": True,
+            "message_history_variable": "input_node.message_history",
+        }
+
+        # Create output node with required chatbot fields, pre-mapped to the LLM
+        # node's answer so the chat UI has an assistant_message to render.
         output_node_config = {
             "output_schema": {"assistant_message": "string"},
             "output_json_schema": json.dumps(
@@ -141,6 +164,7 @@ def create_a_new_workflow_definition(
                     "required": ["assistant_message"],
                 }
             ),
+            "output_map": {"assistant_message": "llm_node.output"},
         }
 
         return WorkflowDefinitionSchema(
@@ -155,14 +179,29 @@ def create_a_new_workflow_definition(
                 ),
                 WorkflowNodeSchema.model_validate(
                     {
+                        "id": "llm_node",
+                        "node_type": "SingleLLMCallNode",
+                        "coordinates": {"x": 300, "y": 100},
+                        "config": llm_node_config,
+                    }
+                ),
+                WorkflowNodeSchema.model_validate(
+                    {
                         "id": "output_node",
                         "node_type": "OutputNode",
-                        "coordinates": {"x": 300, "y": 100},
+                        "coordinates": {"x": 500, "y": 100},
                         "config": output_node_config,
                     }
                 ),
             ],
-            links=[],
+            links=[
+                WorkflowLinkSchema.model_validate(
+                    {"source_id": "input_node", "target_id": "llm_node"}
+                ),
+                WorkflowLinkSchema.model_validate(
+                    {"source_id": "llm_node", "target_id": "output_node"}
+                ),
+            ],
             spur_type=spur_type,
         )
     else:
@@ -270,7 +309,7 @@ def list_workflows(
     offset = (page - 1) * page_size
     workflows = (
         db.query(WorkflowModel)
-        .order_by(WorkflowModel.created_at.desc())
+        .order_by(WorkflowModel.updated_at.desc())
         .offset(offset)
         .limit(page_size)
         .all()

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import asyncio
 import base64
 import hashlib
@@ -16,12 +19,13 @@ from ..database import get_db
 from ..dataset.ds_util import get_ds_column_names, get_ds_iterator
 from ..execution.task_recorder import TaskRecorder
 from ..execution.workflow_execution_context import WorkflowExecutionContext
-from ..execution.workflow_executor import WorkflowExecutor
+from ..execution.workflow_executor import SessionNotFoundError, WorkflowExecutor
 from ..models.dataset_model import DatasetModel
 from ..models.output_file_model import OutputFileModel
 from ..models.run_model import RunModel, RunStatus
 from ..models.task_model import TaskModel, TaskStatus
 from ..models.workflow_model import WorkflowModel
+from ..models.workflow_version_model import WorkflowVersionModel
 from ..nodes.base import BaseNodeOutput
 from ..nodes.factory import NodeFactory
 from ..nodes.logic.human_intervention import HumanInterventionNodeOutput, PauseError
@@ -33,11 +37,12 @@ from ..schemas.run_schemas import (
     BatchRunRequestSchema,
     PartialRunRequestSchema,
     ResumeRunRequestSchema,
+    RunListItemSchema,
     RunResponseSchema,
     StartRunRequestSchema,
 )
 from ..schemas.workflow_schemas import WorkflowDefinitionSchema, WorkflowNodeSchema
-from ..utils.workflow_version_utils import fetch_workflow_version
+from ..utils.workflow_version_utils import extract_model_version, fetch_workflow_version
 
 router = APIRouter()
 
@@ -50,6 +55,14 @@ async def create_run_model(
     run_type: str,
     db: Session,
 ) -> RunModel:
+    workflow_version = (
+        db.query(WorkflowVersionModel)
+        .filter(WorkflowVersionModel.id == workflow_version_id)
+        .first()
+    )
+    model_version = extract_model_version(
+        workflow_version.definition if workflow_version else None
+    )
     new_run = RunModel(
         workflow_id=workflow_id,
         workflow_version_id=workflow_version_id,
@@ -58,6 +71,7 @@ async def create_run_model(
         start_time=datetime.now(timezone.utc),
         parent_run_id=parent_run_id,
         run_type=run_type,
+        model_version=model_version,
     )
     db.add(new_run)
     db.commit()
@@ -189,6 +203,8 @@ async def run_workflow_blocking_v2(  # noqa: C901
                         end_time=datetime.now(),
                         is_downstream_of_pause=True,
                     )
+        elif any(task.status == TaskStatus.FAILED for task in new_run.tasks):
+            new_run.status = RunStatus.FAILED
         else:
             new_run.status = RunStatus.COMPLETED
 
@@ -240,6 +256,17 @@ async def run_workflow_blocking_v2(  # noqa: C901
         raise HTTPException(
             status_code=202,
             detail=response.model_dump(),
+        ) from e
+    except SessionNotFoundError as e:
+        new_run.status = RunStatus.FAILED
+        new_run.end_time = datetime.now(timezone.utc)
+        db.commit()
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Session '{e.session_id}' not found. Create a session via "
+                "POST /session/ (or /session/test/) before starting a chatbot run."
+            ),
         ) from e
     except Exception as e:
         new_run.status = RunStatus.FAILED
@@ -378,6 +405,17 @@ async def run_workflow_blocking(  # noqa: C901
         # Refresh the run to get the updated tasks
         db.refresh(new_run)
         raise e
+    except SessionNotFoundError as e:
+        new_run.status = RunStatus.FAILED
+        new_run.end_time = datetime.now(timezone.utc)
+        db.commit()
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Session '{e.session_id}' not found. Create a session via "
+                "POST /session/ (or /session/test/) before starting a chatbot run."
+            ),
+        ) from e
 
 
 @router.post(
@@ -450,6 +488,8 @@ async def run_workflow_non_blocking(  # noqa: C901
 
                 if has_paused_tasks:
                     _handle_paused_workflow(run, executor, task_recorder, workflow_version)
+                elif any(task.status == TaskStatus.FAILED for task in run.tasks):
+                    run.status = RunStatus.FAILED
                 else:
                     run.status = RunStatus.COMPLETED
 
@@ -524,7 +564,7 @@ async def run_workflow_non_blocking(  # noqa: C901
         """Handle PauseException during workflow execution."""
         run.status = RunStatus.PAUSED
         run.outputs = get_node_title_output_map(
-            workflow_version.nodes, {k: v for k, v in executor.outputs.items() if v is not None}
+            workflow_definition.nodes, {k: v for k, v in executor.outputs.items() if v is not None}
         )
 
         # Get all paused node IDs
@@ -562,32 +602,292 @@ async def run_workflow_non_blocking(  # noqa: C901
     return new_run
 
 
+def get_descendant_node_ids(
+    node_id: str, definition: WorkflowDefinitionSchema
+) -> Set[str]:
+    """All node IDs reachable downstream of node_id via the definition's links."""
+    children: Dict[str, Set[str]] = {}
+    for link in definition.links:
+        children.setdefault(link.source_id, set()).add(link.target_id)
+    descendants: Set[str] = set()
+    queue: List[str] = [node_id]
+    while queue:
+        current = queue.pop()
+        for child in children.get(current, set()):
+            if child not in descendants:
+                descendants.add(child)
+                queue.append(child)
+    return descendants
+
+
+async def _run_partial_background(
+    run_id: str,
+    workflow_definition: WorkflowDefinitionSchema,
+    workflow_definition_dict: Dict[str, Any],
+    initial_inputs: Dict[str, Any],
+    target_node_ids: List[str],
+    precomputed: Dict[str, Any],
+    precomputed_node_ids: Set[str],
+    original_run_id: Optional[str],
+    original_outputs: Optional[Dict[str, Dict[str, Any]]] = None,
+    always_run_node_ids: Optional[List[str]] = None,
+) -> None:
+    """Background task that executes a partial workflow run and merges results."""
+    with next(get_db()) as session:
+        run = session.query(RunModel).filter(RunModel.id == run_id).first()
+        if not run:
+            return
+
+        run.status = RunStatus.RUNNING
+        session.commit()
+
+        task_recorder = TaskRecorder(session, run_id)
+
+        # Pre-populate task records for precomputed nodes by copying them from the
+        # original run. This ensures a Continue run shows ALL workflow nodes in the
+        # UI, not just the ones that were re-executed.
+        # Also load them into the task_recorder cache so the executor short-circuits
+        # them (via the "existing completed task" check) instead of re-running them.
+        if original_run_id and precomputed_node_ids:
+            original_run_for_tasks = (
+                session.query(RunModel).filter(RunModel.id == original_run_id).first()
+            )
+            if original_run_for_tasks:
+                for orig_task in original_run_for_tasks.tasks:
+                    if orig_task.node_id in precomputed_node_ids:
+                        new_task = TaskModel(
+                            run_id=run_id,
+                            node_id=orig_task.node_id,
+                            status=orig_task.status,
+                            inputs=orig_task.inputs,
+                            outputs=orig_task.outputs,
+                            error=orig_task.error,
+                            start_time=orig_task.start_time,
+                            end_time=orig_task.end_time,
+                        )
+                        session.add(new_task)
+                        task_recorder.tasks[orig_task.node_id] = new_task
+                session.commit()
+
+        # If there are no target nodes to run (all already complete), mark done immediately.
+        if not target_node_ids:
+            run.status = RunStatus.COMPLETED
+            run.end_time = datetime.now(timezone.utc)
+            session.commit()
+            return
+        context = WorkflowExecutionContext(
+            workflow_id=run.workflow_id,
+            run_id=run_id,
+            parent_run_id=run.parent_run_id,
+            run_type=run.run_type,
+            db_session=session,
+            workflow_definition=workflow_definition_dict,
+        )
+        executor = WorkflowExecutor(
+            workflow=workflow_definition,
+            task_recorder=task_recorder,
+            context=context,
+            original_outputs=original_outputs,
+            always_run_node_ids=always_run_node_ids,
+        )
+        input_node = next(
+            node for node in workflow_definition.nodes if node.node_type == "InputNode"
+        )
+
+        try:
+            await executor.run(
+                input=initial_inputs.get(input_node.id, {}),
+                node_ids=target_node_ids,
+                precomputed_outputs=precomputed,
+            )
+        except Exception as e:
+            logger.error(f"Partial run {run_id} failed: {e}")
+            run.status = RunStatus.FAILED
+            run.end_time = datetime.now(timezone.utc)
+            session.commit()
+            return
+
+        session.refresh(run)
+
+        paused_node_ids: List[str] = [
+            t.node_id for t in run.tasks if t.status == TaskStatus.PAUSED
+        ]
+        has_failed_tasks = any(t.status == TaskStatus.FAILED for t in run.tasks)
+
+        if paused_node_ids:
+            run.status = RunStatus.PAUSED
+            all_blocked_nodes: Set[str] = set()
+            for paused_node_id in paused_node_ids:
+                all_blocked_nodes.update(executor.get_blocked_nodes(paused_node_id))
+            for task in run.tasks:
+                if task.status == TaskStatus.CANCELED and task.node_id in all_blocked_nodes:
+                    task_recorder.update_task(
+                        node_id=task.node_id,
+                        status=TaskStatus.PENDING,
+                        end_time=datetime.now(),
+                        is_downstream_of_pause=True,
+                    )
+        elif has_failed_tasks:
+            run.status = RunStatus.FAILED
+        else:
+            run.status = RunStatus.COMPLETED
+
+        run.outputs = get_node_title_output_map(
+            workflow_definition.nodes,
+            {k: v for k, v in executor.outputs.items() if v is not None},
+        )
+        run.end_time = datetime.now(timezone.utc)
+        session.commit()
+        session.refresh(run)
+
+        # Note: the continue run stands alone — the original run's tasks, outputs,
+        # and status are never modified. Continuing a continue run reads the child
+        # run's own task records, so continues chain naturally.
+
+
 @router.post(
     "/{workflow_id}/run_partial/",
-    response_model=Dict[str, Any],
-    description="Run a partial workflow and return the outputs",
+    response_model=RunListItemSchema,
+    description="Start a partial workflow run as a background task and return immediately",
 )
 async def run_partial_workflow(
     workflow_id: str,
     request: PartialRunRequestSchema,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-) -> Dict[str, Any]:
+) -> RunListItemSchema:
     workflow = db.query(WorkflowModel).filter(WorkflowModel.id == workflow_id).first()
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
-    workflow_definition = WorkflowDefinitionSchema.model_validate(workflow.definition)
-    executor = WorkflowExecutor(workflow_definition)
-    input_node = next(node for node in workflow_definition.nodes if node.node_type == "InputNode")
+
+    workflow_version = fetch_workflow_version(workflow_id, workflow, db)
+    workflow_definition = WorkflowDefinitionSchema.model_validate(workflow_version.definition)
     initial_inputs = request.initial_inputs or {}
-    try:
-        outputs = await executor.run(
-            input=initial_inputs.get(input_node.id, {}),
-            node_ids=[request.node_id],
-            precomputed_outputs=request.partial_outputs or {},
+
+    # Compute target nodes and precomputed outputs in the request scope (DB access needed)
+    precomputed_node_ids: Set[str] = set()
+    original_outputs: Dict[str, Dict[str, Any]] = {}
+    always_run_node_ids: List[str] = []
+    if request.node_ids:
+        # Explicit list: run exactly these nodes with provided partial outputs
+        target_node_ids = request.node_ids
+        precomputed = request.partial_outputs or {}
+        precomputed_node_ids = set(precomputed.keys())
+    elif request.original_run_id and request.continue_from_node_id:
+        # Node-scoped continue: re-run the given node and all its descendants,
+        # reusing the original run's COMPLETED outputs for everything else.
+        forced_node_id = request.continue_from_node_id
+        all_node_ids = {node.id for node in workflow_definition.nodes}
+        if forced_node_id not in all_node_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Node {forced_node_id} not found in workflow",
+            )
+        original_run_for_planning = (
+            db.query(RunModel).filter(RunModel.id == request.original_run_id).first()
         )
-        return outputs
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        if not original_run_for_planning:
+            raise HTTPException(status_code=404, detail="Original run not found")
+        targets = {forced_node_id} | get_descendant_node_ids(forced_node_id, workflow_definition)
+        target_node_ids = list(targets & all_node_ids)
+        completed_tasks = {
+            t.node_id: t
+            for t in original_run_for_planning.tasks
+            if t.status == TaskStatus.COMPLETED
+        }
+        precomputed = {
+            node_id: (task.outputs or {})
+            for node_id, task in completed_tasks.items()
+            if node_id not in targets
+        }
+        precomputed_node_ids = set(precomputed.keys())
+        # Early cutoff: the forced node ALWAYS re-executes; its descendants reuse
+        # the original run's outputs for as long as every upstream output comes out
+        # identical to what the original run recorded, and re-execute from the
+        # first point of divergence onward.
+        original_outputs = {
+            node_id: task.outputs
+            for node_id, task in completed_tasks.items()
+            if task.outputs
+        }
+        # A descendant whose config changed since the original run must also
+        # re-execute when reached — it is never eligible for output reuse, even
+        # if all upstream outputs are unchanged. Compare against the original
+        # run's workflow version, not the current one.
+        original_version = (
+            db.query(WorkflowVersionModel)
+            .filter(WorkflowVersionModel.id == original_run_for_planning.workflow_version_id)
+            .first()
+        )
+        original_configs: Dict[str, Any] = {}
+        if original_version and original_version.definition:
+            original_configs = {
+                n["id"]: n.get("config")
+                for n in original_version.definition.get("nodes", [])
+            }
+        config_changed_node_ids = {
+            node.id
+            for node in workflow_definition.nodes
+            if node.id in targets and original_configs.get(node.id) != node.config
+        }
+        always_run_node_ids = list({forced_node_id} | config_changed_node_ids)
+    elif request.original_run_id:
+        # Auto-continue: run every node that isn't already COMPLETED in the original run
+        original_run_for_planning = (
+            db.query(RunModel).filter(RunModel.id == request.original_run_id).first()
+        )
+        if original_run_for_planning:
+            completed_ids: Set[str] = {
+                t.node_id
+                for t in original_run_for_planning.tasks
+                if t.status == TaskStatus.COMPLETED
+            }
+            all_node_ids = {node.id for node in workflow_definition.nodes}
+            target_node_ids = list(all_node_ids - completed_ids)
+            if not target_node_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Run is already complete — start a fresh rerun instead",
+                )
+            precomputed = {
+                t.node_id: t.outputs or {}
+                for t in original_run_for_planning.tasks
+                if t.status == TaskStatus.COMPLETED
+            }
+            precomputed_node_ids = completed_ids
+        else:
+            target_node_ids = []
+            precomputed = request.partial_outputs or {}
+            precomputed_node_ids = set(precomputed.keys())
+    else:
+        target_node_ids = []
+        precomputed = request.partial_outputs or {}
+        precomputed_node_ids = set(precomputed.keys())
+
+    new_run = await create_run_model(
+        workflow_id,
+        workflow_version.id,
+        initial_inputs,
+        request.original_run_id,
+        "interactive",
+        db,
+    )
+
+    background_tasks.add_task(
+        _run_partial_background,
+        new_run.id,
+        workflow_definition,
+        workflow_version.definition,
+        initial_inputs,
+        target_node_ids,
+        precomputed,
+        precomputed_node_ids,
+        request.original_run_id,
+        original_outputs,
+        always_run_node_ids,
+    )
+
+    return new_run
 
 
 @router.post(
@@ -615,12 +915,21 @@ async def batch_run_workflow_non_blocking(  # noqa: C901
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
+    # record which dataset this batch run consumed so it shows up in the
+    # dataset's run history (GET /ds/{id}/list_runs/)
+    new_run.input_dataset_id = dataset_id
+    db.commit()
+
     # ensure ds columns match workflow inputs
     dataset_columns = get_ds_column_names(dataset.file_path)
     workflow_definition = WorkflowDefinitionSchema.model_validate(workflow_version.definition)
     input_node = next(node for node in workflow_definition.nodes if node.node_type == "InputNode")
     input_node_id = input_node.id
-    workflow_input_schema: Dict[str, str] = input_node.config["input_schema"]
+    # InputNode configs historically used "input_schema"; current ones expose the
+    # workflow's inputs as "output_schema" — accept either.
+    workflow_input_schema: Dict[str, str] = (
+        input_node.config.get("input_schema") or input_node.config.get("output_schema") or {}
+    )
     for col in workflow_input_schema.keys():
         if col not in dataset_columns:
             raise HTTPException(
@@ -717,7 +1026,7 @@ async def batch_run_workflow_non_blocking(  # noqa: C901
 
 @router.get(
     "/{workflow_id}/runs/",
-    response_model=List[RunResponseSchema],
+    response_model=List[RunListItemSchema],
     description="List all runs of a workflow",
 )
 def list_runs(
@@ -731,6 +1040,7 @@ def list_runs(
         default=None, description="Filter runs before this date (inclusive)"
     ),
     status: Optional[RunStatus] = Query(default=None, description="Filter runs by status"),
+    input_query: Optional[str] = Query(default=None, description="Filter runs by input values (text search)"),
     db: Session = Depends(get_db),
 ):
     offset = (page - 1) * page_size
@@ -746,22 +1056,18 @@ def list_runs(
     if status:
         query = query.filter(RunModel.status == status)
 
-    # Order by start time descending and apply pagination
-    runs = query.order_by(RunModel.start_time.desc()).offset(offset).limit(page_size).all()
+    # Apply input search filter if provided
+    if input_query:
+        from sqlalchemy import String, cast
+        query = query.filter(cast(RunModel.initial_inputs, String).ilike(f'%{input_query}%'))
 
-    # Update run status based on task status
-    for run in runs:
-        if run.status != RunStatus.FAILED:
-            failed_tasks = [task for task in run.tasks if task.status == TaskStatus.FAILED]
-            running_and_pending_tasks = [
-                task
-                for task in run.tasks
-                if task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]
-            ]
-            if failed_tasks and len(running_and_pending_tasks) == 0:
-                run.status = RunStatus.FAILED
-                db.commit()
-                db.refresh(run)
+    # Order by start time descending and apply pagination.
+    # NOTE: this intentionally returns a lightweight RunListItemSchema and does
+    # NOT load run.tasks. The previous per-run task-scan that lazily transitioned
+    # stuck RUNNING runs to terminal was removed — the async executor already
+    # finalizes run.status (see run_workflow_task), so the list no longer pays an
+    # N+1 task load just to render status/id/time/inputs.
+    runs = query.order_by(RunModel.start_time.desc()).offset(offset).limit(page_size).all()
 
     return runs
 
@@ -1270,21 +1576,30 @@ def _create_resume_workflow_task(  # noqa: C901
                     # Fallback - use the inputs directly
                     precomputed[paused_task.node_id] = action_request.inputs
 
-            # Run the workflow with the precomputed outputs
-            outputs = await executor.run(
-                input={},  # Input already provided in initial run
-                node_ids=list(nodes_to_run),  # Run the blocked nodes
-                precomputed_outputs=precomputed,  # Use existing outputs plus our human input
-            )
+            if nodes_to_run:
+                # Retrieve the initial inputs that were used when the run started
+                initial_inputs = run.initial_inputs or {}
+                input_node = next(
+                    (n for n in workflow_definition.nodes if n.node_type == "InputNode"),
+                    None,
+                )
+                initial_input = initial_inputs.get(input_node.id, {}) if input_node else {}
 
-            # Create a dictionary of outputs - keep existing outputs and add new ones
-            if run.outputs:
-                combined_outputs = run.outputs
-                for k, v in outputs.items():
-                    combined_outputs[k] = v.model_dump()
-                run.outputs = combined_outputs
-            else:
-                run.outputs = {k: v.model_dump() for k, v in outputs.items()}
+                # Run the workflow with the precomputed outputs
+                outputs = await executor.run(
+                    input=initial_input,
+                    node_ids=list(nodes_to_run),  # Run the blocked nodes
+                    precomputed_outputs=precomputed,  # Use existing outputs plus our human input
+                )
+
+                # Create a dictionary of outputs - keep existing outputs and add new ones
+                if run.outputs:
+                    combined_outputs = run.outputs
+                    for k, v in outputs.items():
+                        combined_outputs[k] = v.model_dump()
+                    run.outputs = combined_outputs
+                else:
+                    run.outputs = {k: v.model_dump() for k, v in outputs.items()}
 
             run.status = RunStatus.COMPLETED
             run.end_time = datetime.now(timezone.utc)

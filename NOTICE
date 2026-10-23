@@ -1,0 +1,88 @@
+Faraflow
+Copyright 2026 Alokin LLC
+
+Faraflow is licensed under the Fair Core License, Version 1.0, ALv2 Future
+License (FCL-1.0-ALv2). The full terms are in the LICENSE.md file.
+
+Each version of Faraflow becomes available under the Apache License, Version
+2.0 on the second anniversary of the date that version is made available, as
+described in the "Grant of Future License" section of LICENSE.md.
+
+
+Upstream code
+-------------
+
+Faraflow grew out of PySpur (https://github.com/PySpur-Dev/pyspur), copyright
+the PySpur contributors, which is licensed under the Apache License, Version
+2.0. The upstream code that Faraflow contains remains under the Apache License,
+Version 2.0. A copy of that license is in the LICENSE-APACHE file.
+
+
+Which license applies to which file
+-----------------------------------
+
+1. A file that carries the header "SPDX-License-Identifier: FCL-1.0-ALv2" and
+   "Copyright 2026 Alokin LLC" was written by Alokin LLC and is licensed under
+   the FCL (see LICENSE.md).
+
+2. A file that carries an upstream notice together with the line "Modified by
+   Alokin LLC" is an upstream PySpur file that Alokin LLC changed. The
+   upstream code in it remains under the Apache License, Version 2.0 (see
+   LICENSE-APACHE). Alokin LLC's modifications are licensed under the FCL (see
+   LICENSE.md).
+
+3. A file without a header is upstream PySpur code that Alokin LLC has not
+   changed, and is licensed under the Apache License, Version 2.0 (see
+   LICENSE-APACHE).
+
+4. Files that cannot carry a header comment (for example JSON files, lock
+   files and images) follow the same rules: if Alokin LLC added the file, it is
+   covered by the FCL; if it is an upstream file, it remains under the Apache
+   License, Version 2.0, together with any changes Alokin LLC made to it, which
+   are licensed under the FCL.
+
+
+Generated third-party files
+---------------------------
+
+The files under frontend/src/lib/components/ui/ and frontend/src/lib/utils.ts
+were generated from shadcn-svelte (https://www.shadcn-svelte.com). Faraflow
+distributes them under the FCL (see LICENSE.md). The MIT License notice that
+comes with the original code follows, as that license requires:
+
+    MIT License
+
+    Copyright (c) 2023 Hunter Johnston <https://github.com/huntabyte>
+    Copyright (c) 2023 CokaKoala <https://github.com/adriangonz97>
+    Copyright (c) 2023 shadcn
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+
+Third-party logos and marks
+---------------------------
+
+The logos, trademarks, product names and company names of third-party software
+and services that appear in Faraflow's interface and documentation (for example
+Slack, GitHub, Google, Reddit, YouTube, Jina, Firecrawl, Exa, Serper, Mathpix,
+Meta, Anki and Beagle Security) are the property and copyright of their
+respective owners. Faraflow does not own them, and they are not covered by the
+license in LICENSE.md. They are shown only to identify the integrations that
+Faraflow connects to, and their use does not imply any endorsement of, or
+affiliation with, Faraflow.

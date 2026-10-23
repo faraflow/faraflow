@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -79,8 +82,14 @@ def get_vector_stores() -> Dict[str, VectorStoreConfig]:
     }
 
 
-async def get_datastore(datastore: str, embedding_model: Optional[str] = None) -> DataStore:
-    """Initialize and return a DataStore instance for the specified vector database."""
+async def get_datastore(
+    datastore: str, embedding_model: Optional[str] = None, index_id: Optional[str] = None
+) -> DataStore:
+    """Initialize and return a DataStore instance for the specified vector database.
+
+    When ``index_id`` is given, a Chroma store uses its own collection for that vector index, so
+    indices do not see each other's chunks.
+    """
     assert datastore is not None
 
     # Validate the datastore is supported
@@ -102,6 +111,11 @@ async def get_datastore(datastore: str, embedding_model: Optional[str] = None) -
         case "chroma":
             from .providers.chroma_datastore import ChromaDataStore
 
+            if index_id:
+                return ChromaDataStore(
+                    embedding_dimension=embedding_dimension,
+                    collection_name=f"vector_index_{index_id}",
+                )
             return ChromaDataStore(embedding_dimension=embedding_dimension)
 
         case "pinecone":

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import os
 import shutil
 import tempfile
@@ -7,9 +10,9 @@ from importlib.resources import as_file, files
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
@@ -69,6 +72,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+PYSPUR_API_KEY = os.environ.get("PYSPUR_API_KEY")
+
+
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    if not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    if request.url.path == "/api/health":
+        # Health checks must work without the API key.
+        return await call_next(request)
+    if not PYSPUR_API_KEY:
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != PYSPUR_API_KEY:
+        return JSONResponse({"detail": "Invalid or missing Authorization header"}, status_code=401)
+    return await call_next(request)
+
+
+# Registered before the /api mount below, so /api/health is answered here.
+@app.get("/health", include_in_schema=False)
+@app.get("/api/health", include_in_schema=False)
+async def health_check():
+    return {"status": "ok"}
+
+
 # Mount the API routes under /api
 app.mount("/api", api_app, name="api")
 
@@ -79,9 +107,9 @@ if temporary_static_dir and Path.joinpath(temporary_static_dir, "images").exists
         StaticFiles(directory=str(temporary_static_dir.joinpath("images"))),
         name="images",
     )
-if temporary_static_dir and Path.joinpath(temporary_static_dir, "_next").exists():
+if temporary_static_dir and Path.joinpath(temporary_static_dir, "_app").exists():
     app.mount(
-        "/_next", StaticFiles(directory=str(temporary_static_dir.joinpath("_next"))), name="_next"
+        "/_app", StaticFiles(directory=str(temporary_static_dir.joinpath("_app"))), name="_app"
     )
 
 
@@ -90,9 +118,12 @@ async def serve_frontend(full_path: str):
     if not temporary_static_dir:
         raise RuntimeError("Static directory not initialized")
 
-    # If the request is empty, serve index.html
+    # SvelteKit adapter-static SPA fallback file
+    spa_fallback = temporary_static_dir.joinpath("200.html")
+
+    # If the request is empty, serve the SPA fallback
     if full_path == "":
-        return FileResponse(temporary_static_dir.joinpath("index.html"))
+        return FileResponse(spa_fallback)
 
     # remove trailing slash
     if full_path[-1] == "/":
@@ -107,7 +138,7 @@ async def serve_frontend(full_path: str):
         if candidate_index.exists():
             return FileResponse(candidate_index)
 
-    # If no direct file, try appending ".html" (for files like dashboard.html)
+    # If no direct file, try appending ".html"
     candidate_html = temporary_static_dir.joinpath(full_path + ".html")
     if candidate_html.exists():
         return FileResponse(candidate_html)
@@ -124,5 +155,5 @@ async def serve_frontend(full_path: str):
         if dynamic_file.exists():
             return FileResponse(dynamic_file)
 
-    # Fallback: serve the main index.html for client‑side routing.
-    return FileResponse(temporary_static_dir.joinpath("index.html"))
+    # Fallback: serve the SvelteKit SPA fallback for client-side routing.
+    return FileResponse(spa_fallback)

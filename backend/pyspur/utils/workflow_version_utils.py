@@ -1,13 +1,33 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import hashlib
 import json
+from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
 from ..models.workflow_version_model import WorkflowVersionModel
+from ..nodes.primitives.input import InputNodeConfig
 from ..schemas.workflow_schemas import (
     WorkflowDefinitionSchema,
     WorkflowResponseSchema,
 )
+
+
+def extract_model_version(definition: Optional[Dict[str, Any]]) -> str:
+    """Return the model_version declared on the workflow's input node.
+
+    The version lives on the top-level InputNode's config. Falls back to the
+    InputNodeConfig default when the workflow definition does not declare one.
+    """
+    default = InputNodeConfig.model_fields["model_version"].default
+    if not definition:
+        return default
+    for node in definition.get("nodes", []):
+        if node.get("node_type") == "InputNode" and node.get("parent_id") is None:
+            return node.get("config", {}).get("model_version") or default
+    return default
 
 
 def get_latest_workflow_version(workflow_id: str, db: Session) -> int:

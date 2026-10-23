@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from typing import Any, Dict
 
 from pydantic import BaseModel
@@ -14,8 +17,10 @@ class PythonFuncNodeConfig(BaseNodeConfig):
     code: str = "\n".join(
         [
             "# Write your Python code here.",
-            '# The input data is available as "input" pydantic model.',
+            '# The input data is available as a Pydantic model with the name "input_model".',
             "# Return a dictionary of variables that you would like to see in the node output.",
+            "",
+            ""
         ]
     )
 
@@ -49,7 +54,7 @@ class PythonFuncNode(BaseNode):
         exec_locals: Dict[str, Any] = {}
 
         # Indent user code properly
-        code_body = "\n".join("    " + line for line in self.config.code.split("\n"))
+        code_body = "\n".join("    " + line for line in self.config.code.splitlines())
 
         # Build the code to execute
         function_code = f"def user_function(input_model):\n{code_body}\n"

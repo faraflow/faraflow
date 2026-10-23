@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 """
 Chroma datastore support for the ChatGPT retrieval plugin.
 
@@ -10,6 +13,7 @@ Consult the Chroma docs and GitHub repo for more information:
 import os
 from datetime import datetime
 from typing import Dict, List, Optional
+from urllib.parse import urlsplit
 
 import chromadb
 
@@ -28,7 +32,8 @@ from ...schemas.document_schemas import (
 from ..datastore import DataStore
 
 CHROMA_IN_MEMORY = os.environ.get("CHROMA_IN_MEMORY", "True")
-CHROMA_PERSISTENCE_DIR = os.environ.get("CHROMA_PERSISTENCE_DIR", "openai")
+# Under backend/data, which docker-compose keeps in a named volume.
+CHROMA_PERSISTENCE_DIR = os.environ.get("CHROMA_PERSISTENCE_DIR", "data/chroma")
 CHROMA_HOST = os.environ.get("CHROMA_HOST", "http://127.0.0.1")
 CHROMA_PORT = os.environ.get("CHROMA_PORT", "8000")
 CHROMA_COLLECTION = os.environ.get("CHROMA_COLLECTION", "openaiembeddings")
@@ -38,7 +43,7 @@ class ChromaDataStore(DataStore):
     def __init__(
         self,
         embedding_dimension: Optional[int] = None,
-        in_memory: bool = CHROMA_IN_MEMORY,  # type: ignore
+        in_memory: Optional[bool] = None,
         persistence_dir: Optional[str] = CHROMA_PERSISTENCE_DIR,
         collection_name: str = CHROMA_COLLECTION,
         host: str = CHROMA_HOST,
@@ -49,24 +54,22 @@ class ChromaDataStore(DataStore):
         if client:
             self._client = client
         else:
+            if in_memory is None:
+                in_memory = CHROMA_IN_MEMORY.strip().lower() in ("1", "true", "yes", "on")
+            settings = chromadb.config.Settings(anonymized_telemetry=False)
             if in_memory:
-                settings = (
-                    chromadb.config.Settings(
-                        chroma_db_impl="duckdb+parquet",
-                        persist_directory=persistence_dir,
-                    )
-                    if persistence_dir
-                    else chromadb.config.Settings()
-                )
-
-                self._client = chromadb.Client(settings=settings)
+                # "In memory" means a local client: persisted to disk when a directory is set.
+                if persistence_dir:
+                    self._client = chromadb.PersistentClient(path=persistence_dir, settings=settings)
+                else:
+                    self._client = chromadb.EphemeralClient(settings=settings)
             else:
-                self._client = chromadb.Client(
-                    settings=chromadb.config.Settings(
-                        chroma_api_impl="rest",
-                        chroma_server_host=host,
-                        chroma_server_http_port=port,
-                    )
+                url = urlsplit(host if "://" in host else f"http://{host}")
+                self._client = chromadb.HttpClient(
+                    host=url.hostname or "127.0.0.1",
+                    port=int(port),
+                    ssl=url.scheme == "https",
+                    settings=settings,
                 )
         self._collection = self._client.get_or_create_collection(
             name=collection_name,
@@ -84,6 +87,11 @@ class ChromaDataStore(DataStore):
         """
         chunks = {}
         for doc in documents:
+            existing = getattr(doc, "chunks", None)
+            if existing and all(chunk.embedding is not None for chunk in existing):
+                # The vector index already chunked and embedded this document: keep those chunks.
+                chunks[doc.id or existing[0].metadata.document_id] = existing
+                continue
             config = (
                 ChunkingConfigSchema(chunk_token_size=chunk_token_size)
                 if chunk_token_size
@@ -112,6 +120,15 @@ class ChromaDataStore(DataStore):
             ],
         )
         return list(chunks.keys())
+
+    @staticmethod
+    def _normalize_where(where: Optional[Dict]) -> Optional[Dict]:
+        """Chroma rejects an empty filter and a filter with several keys, so adapt both."""
+        if not where:
+            return None
+        if len(where) == 1:
+            return where
+        return {"$and": [{key: value} for key, value in where.items()]}
 
     def _where_from_query_filter(self, query_filter: DocumentMetadataFilterSchema) -> Dict:
         output = {
@@ -151,8 +168,10 @@ class ChromaDataStore(DataStore):
             stored_metadata["source"] = metadata.source.value
         if metadata.source_id:
             stored_metadata["source_id"] = metadata.source_id
-        if metadata.url:
-            stored_metadata["url"] = metadata.url
+        if metadata.title:
+            stored_metadata["title"] = metadata.title
+        if metadata.chunk_index is not None:
+            stored_metadata["chunk_index"] = metadata.chunk_index
         if metadata.created_at:
             stored_metadata["created_at"] = int(
                 datetime.fromisoformat(metadata.created_at).timestamp()
@@ -168,7 +187,8 @@ class ChromaDataStore(DataStore):
         return DocumentChunkMetadataSchema(
             source=Source(metadata["source"]) if "source" in metadata else None,
             source_id=metadata.get("source_id", None),
-            url=metadata.get("url", None),
+            title=metadata.get("title", None),
+            chunk_index=metadata.get("chunk_index", None),
             created_at=(
                 datetime.fromtimestamp(metadata["created_at"]).isoformat()
                 if "created_at" in metadata
@@ -187,7 +207,9 @@ class ChromaDataStore(DataStore):
                 query_embeddings=[query.embedding],
                 include=["documents", "distances", "metadatas"],  # embeddings
                 n_results=min(query.top_k, self._collection.count()),  # type: ignore
-                where=(self._where_from_query_filter(query.filter) if query.filter else {}),
+                where=self._normalize_where(
+                    self._where_from_query_filter(query.filter) if query.filter else None
+                ),
             )
             for query in queries
         ]
@@ -231,9 +253,11 @@ class ChromaDataStore(DataStore):
         Returns whether the operation was successful.
         """
         if delete_all:
-            self._collection.delete()
+            # Dropping the collection removes every vector in it; Chroma rejects an empty delete().
+            self._client.delete_collection(self._collection.name)
             return True
 
+        where_clause: Optional[Dict] = None
         if ids and len(ids) > 0:
             if len(ids) > 1:
                 where_clause = {"$or": [{"document_id": id_} for id_ in ids]}
@@ -251,5 +275,5 @@ class ChromaDataStore(DataStore):
         elif filter:
             where_clause = self._where_from_query_filter(filter)
 
-        self._collection.delete(where=where_clause)
+        self._collection.delete(where=self._normalize_where(where_clause))
         return True

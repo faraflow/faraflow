@@ -1,6 +1,11 @@
+<!--
+  Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+  Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+  SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
+-->
 # Development Container Configuration
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/pyspur-dev/pyspur)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/faraflow/faraflow)
 
 This directory contains configuration files for Visual Studio Code Dev Containers / GitHub Codespaces. Dev containers provide a consistent, isolated development environment for this project.
 

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from fastapi import FastAPI
 
 from ..nodes.registry import NodeRegistry
@@ -28,7 +31,7 @@ from .workflow_run import router as workflow_run_router
 api_app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
-    title="PySpur API",
+    title="Faraflow API",
     version="1.0.0",
 )
 

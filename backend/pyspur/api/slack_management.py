@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import asyncio
 import json
 import os
@@ -632,7 +635,7 @@ async def send_message(
 @router.post("/test-message", response_model=SlackMessageResponse)
 async def test_message(
     channel: str,
-    text: str = "Hello from PySpur! This is a test message.",
+    text: str = "Hello from Faraflow! This is a test message.",
     agent_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:

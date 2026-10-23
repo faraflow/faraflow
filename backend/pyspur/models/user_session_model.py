@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -60,7 +63,7 @@ class SessionModel(BaseModel):
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="sessions")
 
     # Relationship to workflow
-    workflow: Mapped["WorkflowModel"] = relationship("WorkflowModel")
+    workflow: Mapped["WorkflowModel"] = relationship("WorkflowModel", back_populates="sessions")
 
     # Relationship to messages, ordered chronologically
     messages: Mapped[List["MessageModel"]] = relationship(

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from typing import Any, Dict, List
 
 from pydantic import BaseModel, create_model
@@ -15,11 +18,15 @@ class InputNodeConfig(BaseNodeConfig):
     Configuration for the InputNode.
     enforce_schema: bool = False. If True, the output_schema will be enforced. Otherwise the output will be the same as the input.
     output_schema: Dict[str, str] = {"input_1": "string"}. The schema of the output.
+    model_version: str = "1.0". A version label identifying the analysis model this
+        workflow represents. Stamped onto every run created from this workflow and
+        surfaced on the run API response.
     """
 
     enforce_schema: bool = False
     output_schema: Dict[str, str] = {"input_1": "string"}
     output_json_schema: str = '{"type": "object", "properties": {"input_1": {"type": "string"} } }'
+    model_version: str = "1.0"
     pass
 
 

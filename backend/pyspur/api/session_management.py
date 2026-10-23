@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -74,13 +77,16 @@ async def list_sessions(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     user_id: str | None = None,
+    workflow_id: str | None = None,
     db: Session = Depends(get_db),
 ) -> SessionListResponse:
-    """List sessions with pagination and optional user filtering."""
+    """List sessions with pagination and optional user/workflow filtering."""
     query = select(SessionModel)
 
     if user_id:
         query = query.where(SessionModel.user_id == user_id)
+    if workflow_id:
+        query = query.where(SessionModel.workflow_id == workflow_id)
 
     # Get total count
     total_count = cast(int, db.scalar(select(func.count()).select_from(query.subquery())))
@@ -94,6 +100,8 @@ async def list_sessions(
 
     if user_id:
         sessions = sessions.filter(SessionModel.user_id == user_id)
+    if workflow_id:
+        sessions = sessions.filter(SessionModel.workflow_id == workflow_id)
 
     sessions = sessions.offset(skip).limit(limit).all()
 

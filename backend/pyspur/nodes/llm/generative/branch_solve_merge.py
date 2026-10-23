@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
@@ -102,9 +105,11 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
         """
         nodes: List[WorkflowNodeSchema] = []
         links: List[WorkflowLinkSchema] = []
+        # Inner node ids must be unique across nodes: the run's task table is keyed by node id.
+        prefix = self._inner_id_prefix()
 
         # Input node
-        input_node_id = "branch_solve_merge_input_node"
+        input_node_id = f"{prefix}branch_solve_merge_input_node"
         self.input_node_id = input_node_id
         input_node = WorkflowNodeSchema(
             id=input_node_id,
@@ -117,7 +122,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
         nodes.append(input_node)
 
         # Branch node: Decompose task into subtasks
-        branch_node_id = "branch_node"
+        branch_node_id = f"{prefix}branch_node"
         self.branch_node_id = branch_node_id
         branch_node = WorkflowNodeSchema(
             id=branch_node_id,
@@ -140,7 +145,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
         )
 
         # Output node
-        output_node_id = "output_node"
+        output_node_id = f"{prefix}output_node"
         self.output_node_id = output_node_id
         output_node = WorkflowNodeSchema(
             id=output_node_id,
@@ -170,6 +175,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
         """
         nodes: List[WorkflowNodeSchema] = []
         links: List[WorkflowLinkSchema] = []
+        prefix = self._inner_id_prefix()
 
         # Input node (same as before)
         input_node_id = self.input_node_id
@@ -205,7 +211,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
         # For each subtask, create a solve node
         solve_node_ids: List[str] = []
         for idx, _subtask in enumerate(subtasks):
-            solve_node_id = f"solve_node_{idx}"
+            solve_node_id = f"{prefix}solve_node_{idx}"
             solve_node_ids.append(solve_node_id)
             solve_node = WorkflowNodeSchema(
                 id=solve_node_id,
@@ -213,7 +219,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
                 config={
                     "llm_info": self.config.llm_info.model_dump(),
                     "system_message": self.config.solve_system_message,
-                    "user_message": f"{{{{branch_node.subtasks[{idx}]}}}}",
+                    "user_message": f"{{{{{branch_node_id}.subtasks[{idx}]}}}}",
                     "output_schema": {f"solution_{idx}": "string"},
                 },
             )
@@ -228,7 +234,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
             )
 
         # Merge node: Combine solutions
-        merge_node_id = "merge_node"
+        merge_node_id = f"{prefix}merge_node"
         merge_node = WorkflowNodeSchema(
             id=merge_node_id,
             node_type="SingleLLMCallNode",
@@ -236,7 +242,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
                 "llm_info": self.config.llm_info.model_dump(),
                 "system_message": self.config.merge_system_message,
                 "user_message": "\n".join(
-                    [f"{{{{solve_node_{i}.solution_{i}}}}}" for i in range(len(subtasks))]
+                    [f"{{{{{solve_node_ids[i]}.solution_{i}}}}}" for i in range(len(subtasks))]
                 ),
                 "output_schema": self.config.output_schema,
             },
@@ -253,7 +259,7 @@ class BranchSolveMergeNode(BaseSubworkflowNode):
             )
 
         # Output node
-        output_node_id = "output_node"
+        output_node_id = f"{prefix}output_node"
         output_node = WorkflowNodeSchema(
             id=output_node_id,
             node_type="OutputNode",

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from typing import Any, Dict, List, Optional
@@ -10,12 +13,14 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base_model import BaseModel
 from .output_file_model import OutputFileModel
 from .task_model import TaskModel
+from .user_session_model import MessageModel
 from .workflow_model import WorkflowModel
 
 
@@ -55,10 +60,20 @@ class RunModel(BaseModel):
     )
     end_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     outputs: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    model_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     output_file_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("output_files.id"), nullable=True
     )
+    # Monotonic change token, bumped on every run-row update (see the
+    # before_update listener below) and whenever a task changes (see TaskRecorder).
+    # Lets pollers cheaply detect "did anything meaningful change?" without
+    # loading the full run + tasks payload.
+    version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     tasks: Mapped[List["TaskModel"]] = relationship("TaskModel", cascade="all, delete-orphan")
+    messages: Mapped[List["MessageModel"]] = relationship(
+        "MessageModel", cascade="all, delete-orphan"
+    )
     parent_run: Mapped[Optional["RunModel"]] = relationship(
         "RunModel",
         remote_side=[id],
@@ -89,3 +104,16 @@ class RunModel(BaseModel):
                 * len([subrun for subrun in self.subruns if subrun.status == RunStatus.COMPLETED])
                 / (1.0 * len(self.subruns))
             )
+
+
+@event.listens_for(RunModel, "before_update")
+def _bump_run_version(mapper, connection, target: "RunModel") -> None:
+    """Increment the run's change token on every UPDATE.
+
+    Fires for all run-row updates (status flips, outputs, end_time, etc.) so the
+    ~15 sites that set run.status get version bumps with zero per-site edits.
+    Task-driven changes bump it too by marking the parent run dirty in
+    TaskRecorder.
+    """
+    target.version = (target.version or 0) + 1
+    target.updated_at = datetime.now(timezone.utc)

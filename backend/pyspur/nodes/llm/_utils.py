@@ -1,9 +1,14 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 # type: ignore
+import asyncio
 import base64
 import json
 import logging
 import os
 import re
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 import litellm
@@ -42,6 +47,55 @@ if openai_base_url:
 # If Azure OpenAi is configured, set it as the default provider
 if os.getenv("AZURE_OPENAI_API_KEY"):
     litellm.api_key = os.getenv("AZURE_OPENAI_API_KEY")
+
+_provider_backoff_until: dict[str, datetime] = {}
+
+
+def _get_provider_from_model(model: str) -> str:
+    try:
+        _, provider, _, _ = litellm.get_llm_provider(model)
+        return provider or "unknown"
+    except Exception:
+        return model.split("/")[0] if "/" in model else "openai"
+
+
+def _set_provider_backoff(provider: str, seconds: float = 60.0) -> None:
+    new_until = datetime.now() + timedelta(seconds=seconds)
+    current = _provider_backoff_until.get(provider)
+    if not current or new_until > current:
+        _provider_backoff_until[provider] = new_until
+        logging.warning(
+            f"Rate limit hit for provider '{provider}'. "
+            f"Backing off {seconds:.0f}s (until {new_until.strftime('%H:%M:%S')})."
+        )
+
+
+async def _wait_for_provider_capacity(provider: str) -> None:
+    while True:
+        until = _provider_backoff_until.get(provider)
+        if not until:
+            return
+        remaining = (until - datetime.now()).total_seconds()
+        if remaining <= 0:
+            _provider_backoff_until.pop(provider, None)
+            return
+        logging.info(f"Provider '{provider}' is rate-limited. Waiting {remaining:.0f}s...")
+        await asyncio.sleep(min(remaining, 10))
+
+
+def _extract_retry_after(error_str: str) -> float | None:
+    patterns = [
+        r"retry after (\d+\.?\d*)\s*seconds?",
+        r"try again in (\d+\.?\d*)\s*seconds?",
+        r"\"retry_after\":\s*(\d+\.?\d*)",
+        r"Retry-After[:\s]+(\d+\.?\d*)",
+        r"Please try again in (\d+\.?\d*)\s*seconds?",
+    ]
+    for p in patterns:
+        m = re.search(p, error_str, re.IGNORECASE)
+        if m:
+            return float(m.group(1))
+    return None
 
 
 class ModelInfo(BaseModel):
@@ -149,8 +203,9 @@ def async_retry(*dargs, **dkwargs):
 
 
 @async_retry(
-    wait=wait_random_exponential(min=30, max=120),
+    wait=wait_random_exponential(min=5, max=60),
     stop=stop_after_attempt(3),
+    reraise=True,
     retry=lambda e: not isinstance(
         e,
         (
@@ -160,8 +215,8 @@ def async_retry(*dargs, **dkwargs):
         ),
     ),
 )
-async def completion_with_backoff(**kwargs) -> Message:
-    """Call the LLM completion endpoint with backoff.
+async def _completion_with_transient_backoff(**kwargs) -> Message:
+    """Call the LLM completion endpoint with backoff for transient errors.
 
     Supports Azure OpenAI, standard OpenAI, or Ollama based on the model name.
     """
@@ -205,6 +260,23 @@ async def completion_with_backoff(**kwargs) -> Message:
             logging.error(f"Response status: {getattr(e.response, 'status_code', 'N/A')}")
             logging.error(f"Response body: {getattr(e.response, 'text', 'N/A')}")
         raise e
+
+
+async def completion_with_backoff(**kwargs) -> Message:
+    provider = _get_provider_from_model(kwargs.get("model", ""))
+    max_rate_limit_attempts = 8
+
+    for attempt in range(max_rate_limit_attempts):
+        await _wait_for_provider_capacity(provider)
+        try:
+            return await _completion_with_transient_backoff(**kwargs)
+        except litellm.exceptions.RateLimitError as e:
+            retry_after = _extract_retry_after(str(e)) or 60.0
+            _set_provider_backoff(provider, retry_after)
+            if attempt >= max_rate_limit_attempts - 1:
+                raise
+
+    raise RuntimeError("Unreachable")  # type: ignore
 
 
 def sanitize_json_schema(schema: Dict[str, Any]) -> Dict[str, Any]:

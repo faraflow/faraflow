@@ -1,3 +1,7 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
+import re
 from abc import ABC
 from typing import Any, Dict, Optional, Set
 
@@ -24,6 +28,18 @@ class BaseSubworkflowNode(BaseNode, ABC):
 
     def setup(self) -> None:
         super().setup()
+
+    def _inner_id_prefix(self) -> str:
+        """Prefix for the ids of the nodes inside this node's subworkflow.
+
+        The run's task table is keyed by node id, so two subworkflow nodes whose inner nodes
+        share ids would reuse each other's results. The prefix is built from the node's own
+        name and is a valid template identifier.
+        """
+        prefix = re.sub(r"[^0-9A-Za-z_]", "_", self.name)
+        if not (prefix[:1].isalpha() or prefix[:1] == "_"):
+            prefix = "_" + prefix
+        return prefix + "__"
 
     def setup_subworkflow(self) -> None:
         assert self.subworkflow is not None
@@ -84,4 +100,11 @@ class BaseSubworkflowNode(BaseNode, ABC):
             mapped_input, precomputed_outputs=self.subworkflow_output
         )
         self.subworkflow_output.update(outputs)
-        return self.subworkflow_output[self._subworkflow_output_node.id]
+        output_node_id = self._subworkflow_output_node.id
+        if output_node_id not in self.subworkflow_output:
+            failed = sorted(workflow_executor._failed_nodes)
+            raise RuntimeError(
+                f"Subworkflow did not produce output: '{output_node_id}' was never reached. "
+                f"Failed/skipped nodes: {failed}"
+            )
+        return self.subworkflow_output[output_node_id]

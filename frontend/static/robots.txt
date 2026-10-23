@@ -1,0 +1,5 @@
+# Copyright 2026 Alokin LLC
+# SPDX-License-Identifier: FCL-1.0-ALv2
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Disallow:

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import json
 from typing import Dict, List
 
@@ -55,13 +58,15 @@ class BestOfNNode(BaseSubworkflowNode):
 
     def setup_subworkflow(self) -> None:
         samples = self.config.samples
+        # Inner node ids must be unique across nodes: the run's task table is keyed by node id.
+        prefix = self._inner_id_prefix()
 
         # Generate the nodes for the subworkflow
         nodes: List[WorkflowNodeSchema] = []
         links: List[WorkflowLinkSchema] = []
 
         # Input node
-        input_node_id = "best_of_n_input_node"
+        input_node_id = f"{prefix}best_of_n_input_node"
         input_node = WorkflowNodeSchema(
             id=input_node_id,
             node_type="InputNode",
@@ -73,7 +78,7 @@ class BestOfNNode(BaseSubworkflowNode):
         rating_node_ids: List[str] = []
 
         for i in range(samples):
-            gen_node_id = f"generation_node_{i}"
+            gen_node_id = f"{prefix}generation_node_{i}"
             gen_node = WorkflowNodeSchema(
                 id=gen_node_id,
                 node_type="SingleLLMCallNode",
@@ -96,7 +101,7 @@ class BestOfNNode(BaseSubworkflowNode):
                 )
             )
 
-            rate_node_id = f"rating_node_{i}"
+            rate_node_id = f"{prefix}rating_node_{i}"
             rate_node = WorkflowNodeSchema(
                 id=rate_node_id,
                 node_type="SingleLLMCallNode",
@@ -120,7 +125,7 @@ class BestOfNNode(BaseSubworkflowNode):
             )
 
         # Create a PickOneNode to select the JSON string with the highest rating
-        pick_one_node_id = "pick_one_node"
+        pick_one_node_id = f"{prefix}pick_one_node"
         if self.config.output_json_schema:
             output_schema = json_schema_to_simple_schema(json.loads(self.config.output_json_schema))
         else:
@@ -134,10 +139,12 @@ class BestOfNNode(BaseSubworkflowNode):
                 "code": (
                     """gen_and_ratings = input_model.model_dump()\n"""
                     """print(gen_and_ratings)\n"""
-                    """ratings = {k:v['rating'] for k,v in gen_and_ratings.items() if 'rating_node' in k}\n"""
+                    f"""prefix = {prefix!r}\n"""
+                    """rating_prefix = prefix + 'rating_node'\n"""
+                    """ratings = {k:v['rating'] for k,v in gen_and_ratings.items() if k.startswith(rating_prefix)}\n"""
                     """highest_rating_key = max(ratings, key=ratings.get)\n"""
                     """print(highest_rating_key)\n"""
-                    """corresponding_gen_key = highest_rating_key.replace('rating_node', 'generation_node')\n"""
+                    """corresponding_gen_key = prefix + 'generation_node' + highest_rating_key[len(rating_prefix):]\n"""
                     """return gen_and_ratings[corresponding_gen_key]\n"""
                 ),
             },
@@ -163,12 +170,12 @@ class BestOfNNode(BaseSubworkflowNode):
             )
 
         # add the output node
-        output_node_id = "output_node"
+        output_node_id = f"{prefix}output_node"
         output_node = WorkflowNodeSchema(
             id=output_node_id,
             node_type="OutputNode",
             config={
-                "output_map": {f"{k}": f"pick_one_node.{k}" for k in output_schema.keys()},
+                "output_map": {f"{k}": f"{pick_one_node_id}.{k}" for k in output_schema.keys()},
                 "output_schema": output_schema,
                 "output_json_schema": self.config.output_json_schema,
             },

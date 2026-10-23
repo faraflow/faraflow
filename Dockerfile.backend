@@ -1,8 +1,12 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 FROM python:3.12-slim AS base
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
     curl \
+    fonts-unifont \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install uv
@@ -11,7 +15,8 @@ COPY backend/pyproject.toml .
 RUN uv pip compile pyproject.toml > requirements.txt && \
     uv pip install --system --no-cache-dir -r requirements.txt && \
     rm requirements.txt
-
+RUN echo "deb http://ftp.us.debian.org/debian trixie main non-free" >> /etc/apt/sources.list.d/fonts.list
+# RUN playwright install --with-deps chromium
 
 # Development stage
 FROM base AS development
@@ -33,6 +38,8 @@ COPY backend/ .
 # Copy frontend static files from frontend build stage
 RUN mkdir -p /pyspur/backend/pyspur/static
 RUN rm -rf /pyspur/backend/pyspur/static/*
-COPY --from=frontend-builder /pyspur/frontend/out/ /pyspur/backend/pyspur/static/
+COPY --from=frontend-builder /pyspur/frontend/build/ /pyspur/backend/pyspur/static/
 COPY .env.example /pyspur/backend/pyspur/templates/.env.example
 # Production-specific instructions here
+
+CMD ["bash", "/pyspur/backend/entrypoint_prod.sh"]

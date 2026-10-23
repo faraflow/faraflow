@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 name: Release
 
 on:
@@ -56,17 +59,3 @@ jobs:
           target: production
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
-
-      - name: Build Python package
-        run: |
-          # Create dist directory
-          mkdir -p dist
-          
-          # Build package using the container we just built - use first tag
-          DOCKER_TAG=$(echo "${{ steps.meta-backend.outputs.tags }}" | head -n1)
-          docker run --rm -v "$(pwd)/dist:/dist" "$DOCKER_TAG" sh -c "cd /pyspur/backend && uv build && cp dist/* /dist/"
-
-      - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/ 

@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import json
 from pathlib import Path
 from typing import (
@@ -209,7 +212,9 @@ class VectorIndex:
             )
 
             # Initialize datastore
-            datastore = await get_datastore(config["vector_db"], embedding_model=embedding_model)
+            datastore = await get_datastore(
+                config["vector_db"], embedding_model=embedding_model, index_id=self.index_id
+            )
             logger.debug("Datastore initialized, starting to upsert chunks.")
 
             # Insert chunks into datastore
@@ -253,15 +258,19 @@ class VectorIndex:
             datastore = await get_datastore(
                 self.config["vector_db"],
                 embedding_model=self.config.get("model"),
+                index_id=self.index_id,
             )
 
-            # Delete vectors from vector database
-            await datastore.delete(
-                filter=DocumentMetadataFilterSchema(
-                    document_id=self.index_id,
-                ),
-                delete_all=False,
-            )
+            # Delete vectors from vector database. A Chroma index owns its collection, so drop it.
+            if self.config["vector_db"] == "chroma":
+                await datastore.delete(delete_all=True)
+            else:
+                await datastore.delete(
+                    filter=DocumentMetadataFilterSchema(
+                        document_id=self.index_id,
+                    ),
+                    delete_all=False,
+                )
 
             # Delete files from filesystem
             if self.base_dir.exists():
@@ -297,13 +306,16 @@ class VectorIndex:
         """
         try:
             # Get embedding model from config
-            embedding_model = self.config.get("embedding_config", {}).get("model")
+            # The saved config is flat ("model", "vector_db", ...).
+            embedding_model = self.config.get("model") or self.config.get("embedding_config", {}).get(
+                "model"
+            )
             if not embedding_model:
                 raise ValueError("No embedding model specified in vector index configuration")
 
             # Initialize datastore
             datastore = await get_datastore(
-                self.config["vector_db"], embedding_model=embedding_model
+                self.config["vector_db"], embedding_model=embedding_model, index_id=self.index_id
             )
 
             # Get embedding for query

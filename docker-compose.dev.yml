@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 services:
   nginx:
     image: nginx:latest
@@ -20,8 +23,9 @@ services:
       - ./.env
     command: bash /pyspur/backend/entrypoint.sh
     volumes:
+      # The repo is mounted, so uploaded files, chunks, embeddings and the Chroma store
+      # in backend/data are visible on the host.
       - .:/pyspur
-      - pyspur_data:/pyspur/backend/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -36,7 +40,7 @@ services:
     env_file:
       - ./.env.example
       - ./.env
-    command: npm run dev
+    command: npm run dev -- --host 0.0.0.0
     volumes:
       - .:/pyspur
       - /pyspur/frontend/node_modules
@@ -49,6 +53,8 @@ services:
     env_file:
       - ./.env.example
       - ./.env
+    ports:
+      - "54321:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -58,4 +64,3 @@ services:
 
 volumes:
   postgres_data:
-  pyspur_data:  # Used to persist data like uploaded files, eval outputs, datasets

@@ -1,4 +1,7 @@
 #!/bin/bash
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 
 # Colors for output
 RED='\033[0;31m'
@@ -19,7 +22,7 @@ command_exists() {
 # Function to download a file from GitHub
 download_file() {
     local file=$1
-    local url="https://raw.githubusercontent.com/pyspur-dev/pyspur/main/${file}"
+    local url="https://raw.githubusercontent.com/faraflow/faraflow/main/${file}"
 
     if curl -fsSL "$url" -o "$file"; then
         print_message "Downloaded ${file} successfully" "$GREEN"

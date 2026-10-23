@@ -1,3 +1,6 @@
+# Originally from PySpur (https://github.com/PySpur-Dev/pyspur), licensed under Apache-2.0.
+# Modified by Alokin LLC, 2026; modifications licensed under FCL-1.0-ALv2.
+# SPDX-License-Identifier: Apache-2.0 AND FCL-1.0-ALv2
 import os
 from typing import Dict, List, Optional
 
@@ -378,6 +381,39 @@ async def list_api_keys():
     return [k["name"] for k in MODEL_PROVIDER_KEYS]
 
 
+class APIKeyInfo(BaseModel):
+    name: str
+    value: str  # masked, like GET /{name}
+    configured: bool
+
+
+@router.get(
+    "/keys",
+    response_model=List[APIKeyInfo],
+    description="Get the masked value of every key and whether it is set, in one call",
+)
+async def list_api_key_info() -> List[APIKeyInfo]:
+    """Return every model provider key with its masked value and whether it is set.
+
+    Requires authentication. Declared before /{name} so "keys" is not read as a key name.
+    """
+    param_types = {
+        param.name: param.type for config in PROVIDER_CONFIGS for param in config.parameters
+    }
+    info: List[APIKeyInfo] = []
+    for key in MODEL_PROVIDER_KEYS:
+        name = key["name"]
+        value = get_env_variable(name) or ""
+        info.append(
+            APIKeyInfo(
+                name=name,
+                value=mask_key_value(value, param_types.get(name, "password")),
+                configured=bool(value),
+            )
+        )
+    return info
+
+
 @router.get(
     "/{name}",
     description="Get the masked value of a specific environment variable",
@@ -469,9 +505,3 @@ async def get_vector_stores_endpoint() -> Dict[str, VectorStoreConfig]:
         return stores
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@router.get("/anon-data/", description="Get the status of anonymous telemetry data")
-async def get_anon_data_status() -> bool:
-    """Get the status of anonymous telemetry data."""
-    return os.getenv("DISABLE_ANONYMOUS_TELEMETRY", "false").lower() == "true"
