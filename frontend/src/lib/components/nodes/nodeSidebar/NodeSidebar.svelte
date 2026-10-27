@@ -321,7 +321,7 @@
             Google: [],
             Deepseek: [],
             'IFM K2 Horizon': [],
-            'Jais 3': [],
+            'IFM Jais 3': [],
             Ollama: [],
         }
         for (const id of modelIds) {
@@ -329,7 +329,7 @@
             else if (id.startsWith('anthropic')) groups.Anthropic.push(id)
             else if (id.startsWith('gemini')) groups.Google.push(id)
             else if (id.startsWith('deepseek')) groups.Deepseek.push(id)
-            else if (id.startsWith('ifm/Jais')) groups['Jais 3'].push(id)
+            else if (id.startsWith('ifm/Jais')) groups['IFM Jais 3'].push(id)
             else if (id.startsWith('ifm/')) groups['IFM K2 Horizon'].push(id)
             else groups.OpenAI.push(id)
         }
