@@ -63,3 +63,32 @@ def setup_azure_configuration(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     if missing_config:
         raise ValueError(f"Missing Azure configuration for: {', '.join(missing_config)}")
     return azure_kwargs
+
+
+def setup_ifm_configuration(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Route an IFM model through litellm's OpenAI-compatible path.
+
+    Maps the registry ID (``ifm/K2-Horizon-32B``) to the served model name
+    (``IFM/K2-Horizon-32B``) and takes the API key and base URL from the environment.
+    """
+    ifm_kwargs = kwargs.copy()
+    ifm_kwargs.update(
+        {
+            "model": f"openai/{ifm_served_model_name(kwargs['model'])}",
+            "api_key": os.getenv("IFM_API_KEY"),
+            "api_base": os.getenv("IFM_API_BASE"),
+        }
+    )
+    missing_config = [
+        name
+        for name, key in (("IFM_API_KEY", "api_key"), ("IFM_API_BASE", "api_base"))
+        if not ifm_kwargs.get(key)
+    ]
+    if missing_config:
+        raise ValueError(f"Missing IFM configuration for: {', '.join(missing_config)}")
+    return ifm_kwargs
+
+
+def ifm_served_model_name(model_id: str) -> str:
+    """Map a registry ID such as ``ifm/K2-Horizon-32B`` to the name IFM serves it under."""
+    return f"IFM/{model_id.removeprefix('ifm/')}"

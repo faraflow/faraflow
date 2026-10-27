@@ -29,6 +29,8 @@
             Anthropic: [],
             Google: [],
             Deepseek: [],
+            'IFM K2 Horizon': [],
+            'IFM Jais 3': [],
             Ollama: [],
         }
         for (const id of ids) {
@@ -36,13 +38,15 @@
             else if (id.startsWith('anthropic')) groups.Anthropic.push(id)
             else if (id.startsWith('gemini')) groups.Google.push(id)
             else if (id.startsWith('deepseek')) groups.Deepseek.push(id)
+            else if (id.startsWith('ifm/Jais')) groups['IFM Jais 3'].push(id)
+            else if (id.startsWith('ifm/')) groups['IFM K2 Horizon'].push(id)
             else groups.OpenAI.push(id)
         }
         return groups
     }
 
     function shortName(modelId: string) {
-        return modelId.replace(/^(openai|anthropic|gemini|deepseek|ollama)\//, '')
+        return modelId.replace(/^(openai|anthropic|gemini|deepseek|ifm|ollama)\//, '')
     }
 
     function addModel() {

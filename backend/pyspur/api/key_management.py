@@ -96,6 +96,21 @@ PROVIDER_CONFIGS = [
         ],
     ),
     ProviderConfig(
+        id="ifm",
+        name="IFM (K2 Horizon / Jais)",
+        description="IFM's K2 Horizon and Jais 3 models",
+        category="llm",
+        icon="ifm",
+        parameters=[
+            ProviderParameter(name="IFM_API_KEY", description="IFM API Key"),
+            ProviderParameter(
+                name="IFM_API_BASE",
+                description="IFM API base URL, e.g. https://api.ifm.ai/v1",
+                type="text",
+            ),
+        ],
+    ),
+    ProviderConfig(
         id="cohere",
         name="Cohere",
         description="Cohere's language models",
