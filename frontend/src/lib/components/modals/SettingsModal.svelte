@@ -145,6 +145,7 @@
         anthropic: 'solar:stars-bold',
         google: 'logos:google-icon',
         deepseek: 'solar:code-circle-bold',
+        ifm: 'solar:cpu-bolt-bold',
         cohere: 'solar:magic-stick-3-bold',
         voyage: 'solar:rocket-bold',
         mistral: 'solar:stars-bold',

@@ -24,7 +24,7 @@ from ...utils.file_utils import encode_file_to_base64_data_url
 from ...utils.mime_types_utils import get_mime_type_for_url
 from ...utils.path_utils import is_external_url, resolve_file_path
 from ._model_info import LLMModels
-from ._providers import OllamaOptions, setup_azure_configuration
+from ._providers import OllamaOptions, setup_azure_configuration, setup_ifm_configuration
 
 # uncomment for debugging litellm issues
 # litellm.set_verbose=True
@@ -52,6 +52,8 @@ _provider_backoff_until: dict[str, datetime] = {}
 
 
 def _get_provider_from_model(model: str) -> str:
+    if model.startswith("ifm/"):
+        return "ifm"
     try:
         _, provider, _, _ = litellm.get_llm_provider(model)
         return provider or "unknown"
@@ -218,16 +220,23 @@ def async_retry(*dargs, **dkwargs):
 async def _completion_with_transient_backoff(**kwargs) -> Message:
     """Call the LLM completion endpoint with backoff for transient errors.
 
-    Supports Azure OpenAI, standard OpenAI, or Ollama based on the model name.
+    Supports IFM, Azure OpenAI, standard OpenAI, or Ollama based on the model name.
     """
     try:
         model = kwargs.get("model", "")
         logging.info("=== LLM Request Configuration ===")
         logging.info(f"Requested Model: {model}")
 
+        # IFM goes first so that a configured Azure key does not take over its calls
+        if model.startswith("ifm/"):
+            ifm_kwargs = setup_ifm_configuration(kwargs)
+            logging.info(f"Using IFM config for model: {ifm_kwargs['model']}")
+            response = await acompletion(**ifm_kwargs, drop_params=True)
+            return response.choices[0].message
+
         # Use Azure if either 'azure/' is prefixed or if an Azure API key
         # is provided and not using Ollama
-        if model.startswith("azure/") or (
+        elif model.startswith("azure/") or (
             os.getenv("AZURE_OPENAI_API_KEY") and not model.startswith("ollama/")
         ):
             azure_kwargs = setup_azure_configuration(kwargs)
@@ -298,6 +307,16 @@ def sanitize_json_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
         for key in schema["$defs"]:
             schema["$defs"][key] = sanitize_json_schema(schema["$defs"][key])
     return schema
+
+
+def _json_schema_response_format(output_json_schema: Dict[str, Any]) -> Dict[str, Any]:
+    if "name" not in output_json_schema and "schema" not in output_json_schema:
+        output_json_schema = {
+            "schema": output_json_schema,
+            "strict": True,
+            "name": "output",
+        }
+    return {"type": "json_schema", "json_schema": output_json_schema}
 
 
 async def generate_text(
@@ -380,23 +399,18 @@ async def generate_text(
             raise ValueError("Invalid output schema", output_json_schema)
         output_json_schema["additionalProperties"] = False
 
+        if model_name.startswith("ifm/"):
+            # litellm cannot look up response-schema support for the IFM provider, and IFM
+            # documents response_format with json_schema, so request it directly
+            kwargs["response_format"] = _json_schema_response_format(output_json_schema)
         # check if the model supports response format
-        if "response_format" in litellm.get_supported_openai_params(
+        elif "response_format" in litellm.get_supported_openai_params(
             model=model_name, custom_llm_provider=model_info.provider
         ):
             if litellm.supports_response_schema(
                 model=model_name, custom_llm_provider=model_info.provider
             ) or model_name.startswith("anthropic"):
-                if "name" not in output_json_schema and "schema" not in output_json_schema:
-                    output_json_schema = {
-                        "schema": output_json_schema,
-                        "strict": True,
-                        "name": "output",
-                    }
-                kwargs["response_format"] = {
-                    "type": "json_schema",
-                    "json_schema": output_json_schema,
-                }
+                kwargs["response_format"] = _json_schema_response_format(output_json_schema)
             else:
                 kwargs["response_format"] = {"type": "json_object"}
                 schema_for_prompt = json.dumps(output_json_schema)

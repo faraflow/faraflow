@@ -21,6 +21,7 @@ class LLMProvider(str, Enum):
     AZURE_OPENAI = "azure"
     DEEPSEEK = "deepseek"
     XAI = "xai"
+    IFM = "ifm"
 
 
 class ModelConstraints(BaseModel):
@@ -170,6 +171,10 @@ class LLMModels(str, Enum):
     OLLAMA_MIXTRAL = "ollama/mixtral-8x7b-instruct-v0.1"
 
     XAI_GROK_2 = "xai/grok-2-latest"
+
+    # IFM Models (K2 Horizon and Jais 3), served through an OpenAI-compatible endpoint
+    IFM_K2_HORIZON_375B_A23B = "ifm/K2-Horizon-375B-A23B"
+    IFM_JAIS_3_MOVA_36B_A4B = "ifm/Jais-3-MoVA-36B-A4B"
 
     @classmethod
     def get_model_info(cls, model_id: str) -> LLMModel | None:
@@ -901,6 +906,18 @@ class LLMModels(str, Enum):
                             max_tokens=131072,
                             max_temperature=1.0,
                     ),
+            ),
+            cls.IFM_K2_HORIZON_375B_A23B.value: LLMModel(
+                id=cls.IFM_K2_HORIZON_375B_A23B.value,
+                provider=LLMProvider.IFM,
+                name="K2 Horizon 375B-A23B",
+                constraints=ModelConstraints(max_tokens=524288, max_temperature=2.0),
+            ),
+            cls.IFM_JAIS_3_MOVA_36B_A4B.value: LLMModel(
+                id=cls.IFM_JAIS_3_MOVA_36B_A4B.value,
+                provider=LLMProvider.IFM,
+                name="Jais 3 MoVA 36B-A4B",
+                constraints=ModelConstraints(max_tokens=524288, max_temperature=2.0),
             ),
         }
         return model_registry.get(model_id)
