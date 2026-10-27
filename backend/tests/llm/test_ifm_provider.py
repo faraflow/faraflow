@@ -108,3 +108,25 @@ def test_generate_text_requests_json_schema(
     assert response_format["json_schema"]["strict"] is True
     assert response_format["json_schema"]["name"] == "output"
     assert list(response_format["json_schema"]["schema"]["properties"]) == ["answer"]
+
+
+def test_additional_properties_only_kept_on_object_schemas() -> None:
+    schema = _utils.sanitize_json_schema(
+        {
+            "type": "object",
+            "properties": {
+                "joke": {"type": "string"},
+                "tags": {"type": "array", "items": {"type": "string"}},
+                "meta": {"type": "object", "properties": {"rating": {"type": "integer"}}},
+            },
+        }
+    )
+
+    result = _utils.strip_additional_properties_from_non_objects(schema)
+
+    assert result["additionalProperties"] is False
+    assert result["properties"]["meta"]["additionalProperties"] is False
+    assert "additionalProperties" not in result["properties"]["joke"]
+    assert "additionalProperties" not in result["properties"]["tags"]
+    assert "additionalProperties" not in result["properties"]["tags"]["items"]
+    assert "additionalProperties" not in result["properties"]["meta"]["properties"]["rating"]

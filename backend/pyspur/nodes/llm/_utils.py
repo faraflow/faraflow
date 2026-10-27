@@ -309,6 +309,22 @@ def sanitize_json_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     return schema
 
 
+def strip_additional_properties_from_non_objects(schema: Any) -> Any:
+    """Keep "additionalProperties" only on object schemas.
+
+    IFM rejects it on other types: "Invalid fields for schema with types ['string']".
+    """
+    if isinstance(schema, dict):
+        if schema.get("type") != "object":
+            schema.pop("additionalProperties", None)
+        for value in schema.values():
+            strip_additional_properties_from_non_objects(value)
+    elif isinstance(schema, list):
+        for value in schema:
+            strip_additional_properties_from_non_objects(value)
+    return schema
+
+
 def _json_schema_response_format(output_json_schema: Dict[str, Any]) -> Dict[str, Any]:
     if "name" not in output_json_schema and "schema" not in output_json_schema:
         output_json_schema = {
@@ -402,7 +418,9 @@ async def generate_text(
         if model_name.startswith("ifm/"):
             # litellm cannot look up response-schema support for the IFM provider, and IFM
             # documents response_format with json_schema, so request it directly
-            kwargs["response_format"] = _json_schema_response_format(output_json_schema)
+            kwargs["response_format"] = _json_schema_response_format(
+                strip_additional_properties_from_non_objects(output_json_schema)
+            )
         # check if the model supports response format
         elif "response_format" in litellm.get_supported_openai_params(
             model=model_name, custom_llm_provider=model_info.provider
